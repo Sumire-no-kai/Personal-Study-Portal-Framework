@@ -13,6 +13,11 @@
 > use to your own local or private-hosted copy. You remain responsible for
 > following the rules, permissions, attribution requirements, and AI guidance
 > that apply to your unit of study.
+>
+> **Deployment recommendation:** do not publish an individual deployment to a
+> public URL. Prefer `localhost` or an access-controlled private environment.
+> A public personal deployment can unintentionally expose course material,
+> assessment-related content, private notes, or generated indexes.
 
 A local-first, content-agnostic Markdown reader for long-form learning material.
 It provides structured navigation, responsive reading, LaTeX rendering,
