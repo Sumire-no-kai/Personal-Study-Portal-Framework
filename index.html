@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A local-first, content-agnostic Markdown study portal."
+    />
+    <title>Study Portal</title>
+    <link rel="stylesheet" href="vendor/katex/katex.min.css" />
+  <link rel="stylesheet" href="styles.css?v=20260831-toc-hierarchy-1" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到笔记正文</a>
+
+    <header class="topbar">
+      <div class="topbar__identity">
+        <button
+          class="icon-button mobile-nav-toggle"
+          id="nav-toggle"
+          type="button"
+          aria-label="收起课程导航"
+          aria-controls="sidebar"
+          aria-expanded="true"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M4 5h16v14H4zM9 5v14" />
+          </svg>
+        </button>
+        <button class="brand" id="brand-home" type="button" aria-label="返回学习门户首页">
+          <span class="brand__mark" aria-hidden="true">SP</span>
+          <span class="brand__product">Study Portal</span>
+        </button>
+      </div>
+
+      <div class="topbar__actions">
+        <label class="semester-picker" id="semester-picker">
+          <span class="sr-only">选择学期</span>
+          <select id="semester-select" aria-label="选择学期"></select>
+        </label>
+        <div
+          class="current-note-indicator"
+          id="current-note-indicator"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          hidden
+        >
+          <span class="current-note-indicator__label" id="current-note-label">当前笔记</span>
+          <span class="current-note-indicator__value">
+            <span id="current-note-unit">Unit</span>
+            <span aria-hidden="true">·</span>
+            <span class="current-note-indicator__week" id="current-note-week">Week</span>
+            <span class="current-note-indicator__week-short" id="current-note-week-short">W</span>
+          </span>
+        </div>
+        <button class="search-trigger" id="search-trigger" type="button" aria-label="搜索笔记">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m16 16 4 4" />
+          </svg>
+          <span>搜索笔记</span>
+          <kbd>/</kbd>
+        </button>
+      </div>
+    </header>
+
+    <div class="reading-progress" id="reading-progress" aria-hidden="true" hidden>
+      <span></span>
+    </div>
+
+    <button
+      class="last-read-marker"
+      id="last-read-marker"
+      type="button"
+      aria-label="跳转到上次阅读位置"
+      title="跳转到上次阅读位置"
+      hidden
+    >
+      <span aria-hidden="true"></span>
+      <span class="last-read-marker__label">上次读到</span>
+    </button>
+
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="课程与周次导航">
+        <div class="sidebar__header">
+          <div>
+            <p class="sidebar__term" id="sidebar-term">Semester study notes</p>
+            <p class="sidebar__summary" id="sidebar-summary">Loading library…</p>
+          </div>
+          <button class="icon-button mobile-only" id="nav-close" type="button" aria-label="关闭课程导航">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <button class="library-link" id="library-link" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M4 5.5h6.5v13H4zM13.5 5.5H20v13h-6.5z" />
+          </svg>
+          <span>Study overview</span>
+        </button>
+
+        <nav id="course-navigation" class="course-navigation" aria-label="课程列表"></nav>
+
+        <div class="sidebar__footer">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Local library</span>
+          <span class="sidebar__footer-separator" aria-hidden="true">·</span>
+          <span>Synced notes</span>
+        </div>
+      </aside>
+
+      <button
+        class="sidebar-edge-toggle"
+        id="sidebar-edge-toggle"
+        type="button"
+        aria-label="收起课程导航"
+        aria-controls="sidebar"
+        aria-expanded="true"
+      >
+        <svg aria-hidden="true" viewBox="0 0 16 24">
+          <path d="m10.5 5-5 7 5 7" />
+        </svg>
+      </button>
+
+      <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="关闭课程导航"></button>
+
+      <button
+        class="toc-toggle"
+        id="toc-toggle"
+        type="button"
+        aria-label="打开本页目录"
+        aria-controls="toc-panel"
+        aria-expanded="false"
+        hidden
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M4 6h2M9 6h11M4 12h2M9 12h11M4 18h2M9 18h11" />
+        </svg>
+        <span>本页目录</span>
+      </button>
+
+      <button
+        class="assistant-toggle"
+        id="assistant-toggle"
+        type="button"
+        aria-label="打开问笔记"
+        aria-controls="toc-panel"
+        aria-expanded="false"
+        hidden
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M7 18.5 4.5 20l.8-3A7.5 7.5 0 1 1 19.5 13c0 4-3.7 7-8.2 7-1.6 0-3.1-.4-4.3-1.1" />
+          <path d="M9 8.5h5M9 12h3.5" />
+        </svg>
+        <span>问笔记</span>
+      </button>
+
+      <button class="toc-scrim" id="toc-scrim" type="button" aria-label="关闭阅读工具" hidden></button>
+
+      <button class="back-to-top" id="back-to-top" type="button" aria-label="回到页首" title="回到页首" hidden>
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="m7 11 5-5 5 5M12 6v12" />
+        </svg>
+      </button>
+
+      <button class="selection-ask-ai" id="selection-ask-ai" type="button" aria-label="询问选中的正文" hidden>
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M7 18.5 4.5 20l.8-3A7.5 7.5 0 1 1 19.5 13c0 4-3.7 7-8.2 7-1.6 0-3.1-.4-4.3-1.1" />
+          <path d="M9 8.5h5M9 12h3.5" />
+        </svg>
+        <span>问 AI</span>
+      </button>
+
+      <main class="main" id="main-content" tabindex="-1">
+        <div id="view-root"></div>
+      </main>
+
+      <aside class="toc-panel utility-panel" id="toc-panel" aria-label="阅读工具">
+        <div class="utility-panel__topbar">
+          <div class="utility-tabs" role="tablist" aria-label="阅读工具">
+            <button
+              class="utility-tab"
+              id="toc-tab"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="toc-view"
+            >本页目录</button>
+            <button
+              class="utility-tab"
+              id="assistant-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="assistant-view"
+            >问笔记</button>
+          </div>
+          <button class="icon-button toc-close" id="toc-close" type="button" aria-label="关闭本页目录">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <section class="utility-view toc-view" id="toc-view" role="tabpanel" aria-labelledby="toc-tab">
+          <p class="utility-eyebrow">On this page</p>
+          <nav id="toc-navigation"></nav>
+        </section>
+
+        <section
+          class="utility-view assistant-view"
+          id="assistant-view"
+          role="tabpanel"
+          aria-labelledby="assistant-tab"
+          hidden
+        >
+          <div class="assistant-header">
+            <div>
+              <div class="assistant-title-row">
+                <h2>问笔记</h2>
+                <span class="assistant-status" id="assistant-status" data-state="checking">
+                  <span class="assistant-status__dot" aria-hidden="true"></span>
+                  <span id="assistant-status-label">正在检查本地模型…</span>
+                </span>
+              </div>
+              <p>可选的本地内容助手</p>
+            </div>
+            <button
+              class="assistant-clear"
+              id="assistant-clear"
+              type="button"
+              title="清空当前会话及其上下文；下一轮从全新对话开始"
+            >清空对话</button>
+          </div>
+
+          <div class="assistant-recovery" id="assistant-recovery" hidden>
+            <p id="assistant-recovery-message">本地模型暂时不可用，笔记阅读不受影响。</p>
+            <button id="assistant-retry" type="button">重新启动模型</button>
+          </div>
+
+          <p class="assistant-session-notice" id="assistant-session-notice" aria-live="polite" hidden></p>
+
+          <div class="assistant-scope" role="group" aria-label="检索范围">
+            <button type="button" data-assistant-scope="section" aria-pressed="true">当前章节</button>
+            <button type="button" data-assistant-scope="week" aria-pressed="false">当前 Week</button>
+            <button type="button" data-assistant-scope="unit" aria-pressed="false">当前 Unit</button>
+            <button type="button" data-assistant-scope="all" aria-pressed="false">全部笔记</button>
+          </div>
+          <p class="assistant-scope-label" id="assistant-scope-label">当前笔记</p>
+
+          <div class="assistant-messages" id="assistant-messages" aria-live="polite">
+            <div class="assistant-empty" id="assistant-empty">
+              <span class="assistant-empty__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M7 18.5 4.5 20l.8-3A7.5 7.5 0 1 1 19.5 13c0 4-3.7 7-8.2 7-1.6 0-3.1-.4-4.3-1.1" /><path d="M9 8.5h5M9 12h3.5" /></svg>
+              </span>
+              <h3>从这份笔记开始提问</h3>
+              <p>回答会先列出笔记依据，再给出解释与可直接复习的英文表达。</p>
+            </div>
+          </div>
+
+          <form class="assistant-composer" id="assistant-form">
+            <div class="assistant-composer__settings">
+              <label class="assistant-setting" for="assistant-reply-length">
+                <span>回答长度</span>
+                <select id="assistant-reply-length" aria-label="回答长度">
+                  <option value="">跟随 App 设置</option>
+                  <option value="512">简洁 · 512</option>
+                  <option value="1024">标准 · 1,024</option>
+                  <option value="1536">更长 · 1,536</option>
+                  <option value="2048">深入 · 2,048</option>
+                </select>
+              </label>
+              <label class="assistant-setting" for="assistant-reasoning-mode">
+                <span>回答模式</span>
+                <select id="assistant-reasoning-mode" aria-label="回答模式">
+                  <option value="">跟随 App · 快速优先</option>
+                  <option value="non_thinking">快速回答</option>
+                  <option value="thinking">深入推理</option>
+                </select>
+              </label>
+              <p class="assistant-context-meta" id="assistant-context-meta" aria-live="polite">
+                本轮上下文读取中…
+              </p>
+            </div>
+            <div class="assistant-selection-reference" id="assistant-selection-reference" hidden>
+              <div class="assistant-selection-reference__copy">
+                <span class="assistant-selection-reference__label" id="assistant-selection-label">引用正文</span>
+                <p id="assistant-selection-text"></p>
+              </div>
+              <button id="assistant-selection-clear" type="button" aria-label="移除已引用的正文" title="移除引用">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17" /></svg>
+              </button>
+            </div>
+            <label class="sr-only" for="assistant-input">询问这份笔记</label>
+            <textarea
+              id="assistant-input"
+              rows="2"
+              maxlength="800"
+              placeholder="询问当前章节…"
+            ></textarea>
+            <div class="assistant-composer__actions">
+              <span class="assistant-model-label" id="assistant-model-label">
+                <span aria-hidden="true"></span>
+                <span id="assistant-model-label-text">正在检查本地模型…</span>
+              </span>
+              <button class="assistant-stop" id="assistant-stop" type="button" hidden>停止</button>
+              <button class="assistant-send" id="assistant-send" type="submit" aria-label="发送问题">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 4 17 8-17 8 3-8-3-8Z" /><path d="M7 12h14" /></svg>
+              </button>
+            </div>
+          </form>
+        </section>
+      </aside>
+    </div>
+
+    <dialog class="search-dialog" id="search-dialog" aria-labelledby="search-title">
+      <div class="search-dialog__header">
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="m16 16 4 4" />
+        </svg>
+        <label class="sr-only" for="search-input" id="search-title">搜索全部笔记</label>
+        <input
+          id="search-input"
+          type="search"
+          placeholder="搜索全部笔记正文…"
+          autocomplete="off"
+        />
+        <button class="dialog-close" id="search-close" type="button" aria-label="关闭搜索">Esc</button>
+      </div>
+      <div class="search-dialog__scope">
+        <span id="search-scope-term">Semester notes</span>
+        <span id="search-count">Loading…</span>
+      </div>
+      <div class="search-results" id="search-results" aria-live="polite"></div>
+    </dialog>
+
+    <script src="vendor/marked.umd.js"></script>
+    <script src="vendor/katex/katex.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

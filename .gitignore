@@ -1,0 +1,12 @@
+# This repository intentionally publishes only the reusable web framework.
+# Keep the allowlist small so private course material and App artifacts cannot
+# enter the index accidentally.
+*
+!.gitignore
+!README.md
+!LICENSE
+!index.html
+!app.js
+!styles.css
+!vendor/
+!vendor/**
