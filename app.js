@@ -156,6 +156,31 @@ let flatNotes = flattenPortalNotes(portalData);
 let activeUnits = portalData.units.filter((unit) => unit.weeks.length);
 const LAST_NOTE_STORE_KEY = `study-portal-last-note:${portalData.id}`;
 const ASSISTANT_CONVERSATION_STORE_KEY = `study-portal-assistant-conversation:${portalData.id}`;
+const READING_THEME_STORE_KEY = "study-portal-reading-theme";
+const READING_THEMES = new Set(["light", "warm", "dark"]);
+const IMMERSION_CLOCK_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+const IMMERSION_CLOCK_WEEKDAY_FORMATTER = new Intl.DateTimeFormat("zh-CN", { weekday: "short" });
+const IMMERSION_CLOCK_COMPACT_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  month: "2-digit",
+  day: "2-digit",
+});
+const IMMERSION_CLOCK_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+// This is a browser-only, non-secret preference. API keys remain exclusively on the iQOO.
+const ASSISTANT_BACKEND_STORE_KEY = `study-portal-assistant-backend:${portalData.id}`;
+const ASSISTANT_BACKEND_NAMES = new Set([
+  "gemini_flash",
+  "deepseek_v4_flash",
+  "local_qwen_4b",
+]);
 const LAST_READ_STORE_PREFIX = `study-portal-last-read:${portalData.id}:`;
 const LAST_READ_SCHEMA_VERSION = 1;
 const LAST_READ_MINIMUM_SCROLL_PX = 96;
@@ -231,6 +256,42 @@ function replaceAssistantConversationId() {
   return next;
 }
 
+function readBrowserAssistantBackend() {
+  try {
+    const saved = String(localStorage.getItem(ASSISTANT_BACKEND_STORE_KEY) || "");
+    return ASSISTANT_BACKEND_NAMES.has(saved) ? saved : "gemini_flash";
+  } catch (error) {
+    return "gemini_flash";
+  }
+}
+
+function rememberBrowserAssistantBackend(backend) {
+  if (!ASSISTANT_BACKEND_NAMES.has(backend)) return;
+  try {
+    localStorage.setItem(ASSISTANT_BACKEND_STORE_KEY, backend);
+  } catch (error) {
+    /* Private browsing may deny local storage; retain the per-page choice. */
+  }
+}
+
+function readReadingTheme() {
+  try {
+    const saved = String(localStorage.getItem(READING_THEME_STORE_KEY) || "");
+    return READING_THEMES.has(saved) ? saved : "light";
+  } catch (error) {
+    return "light";
+  }
+}
+
+function rememberReadingTheme(theme) {
+  if (!READING_THEMES.has(theme)) return;
+  try {
+    localStorage.setItem(READING_THEME_STORE_KEY, theme);
+  } catch (error) {
+    /* Reading remains usable when private browsing disallows local storage. */
+  }
+}
+
 function getLatestNote() {
   return flatNotes.reduce((latest, note) => {
     if (!latest) return note;
@@ -263,12 +324,19 @@ const state = {
   overviewAllNotesOpen: false,
   view: getViewFromHash(),
   sidebarCollapsed: false,
+  immersionMode: false,
+  immersiveSidebarCollapsed: true,
+  immersiveTocCollapsed: false,
+  readingTheme: readReadingTheme(),
   utilityTab: "toc",
   assistantScope: "section",
-  // Empty means the per-turn request follows the persistent native App setting.
+  assistantBackend: readBrowserAssistantBackend(),
+  // Empty means the request uses the browser's reply-length choice only.
   assistantReplyTokenBudget: null,
   assistantReasoningMode: "",
 };
+
+let printRestoreState = null;
 
 const courseNavigation = document.querySelector("#course-navigation");
 const viewRoot = document.querySelector("#view-root");
@@ -279,8 +347,10 @@ const assistantToggle = document.querySelector("#assistant-toggle");
 const tocClose = document.querySelector("#toc-close");
 const tocScrim = document.querySelector("#toc-scrim");
 const tocTab = document.querySelector("#toc-tab");
+const preferencesTab = document.querySelector("#preferences-tab");
 const assistantTab = document.querySelector("#assistant-tab");
 const tocView = document.querySelector("#toc-view");
+const preferencesView = document.querySelector("#preferences-view");
 const assistantView = document.querySelector("#assistant-view");
 const sidebar = document.querySelector("#sidebar");
 const navToggle = document.querySelector("#nav-toggle");
@@ -290,6 +360,12 @@ const navScrim = document.querySelector("#sidebar-scrim");
 const libraryLink = document.querySelector("#library-link");
 const brandHome = document.querySelector("#brand-home");
 const searchDialog = document.querySelector("#search-dialog");
+const topbarReadingUtility = document.querySelector("#topbar-reading-utility");
+const printTrigger = document.querySelector("#print-trigger");
+const immersionClock = document.querySelector("#immersion-clock");
+const immersionClockDate = document.querySelector("#immersion-clock-date");
+const immersionClockCompactDate = document.querySelector("#immersion-clock-date-compact");
+const immersionClockTime = document.querySelector("#immersion-clock-time");
 const searchTrigger = document.querySelector("#search-trigger");
 const searchClose = document.querySelector("#search-close");
 const searchInput = document.querySelector("#search-input");
@@ -308,7 +384,10 @@ const searchScopeTerm = document.querySelector("#search-scope-term");
 const readingProgress = document.querySelector("#reading-progress");
 const readingProgressBar = readingProgress.querySelector("span");
 const lastReadMarker = document.querySelector("#last-read-marker");
+const readerControlDock = document.querySelector("#reader-control-dock");
+const immersionToggle = document.querySelector("#immersion-toggle");
 const backToTop = document.querySelector("#back-to-top");
+const readingThemeOptions = [...document.querySelectorAll("[data-reading-theme]")];
 const selectionAskAi = document.querySelector("#selection-ask-ai");
 const assistantStatus = document.querySelector("#assistant-status");
 const assistantStatusLabel = document.querySelector("#assistant-status-label");
@@ -317,10 +396,13 @@ const assistantRecoveryMessage = document.querySelector("#assistant-recovery-mes
 const assistantRetry = document.querySelector("#assistant-retry");
 const assistantClear = document.querySelector("#assistant-clear");
 const assistantSessionNotice = document.querySelector("#assistant-session-notice");
-const assistantScopeButtons = [...document.querySelectorAll("[data-assistant-scope]")];
+const assistantScopeSelect = document.querySelector("#assistant-scope");
+const assistantScopeControl = document.querySelector("#assistant-scope-control");
+const assistantBackend = document.querySelector("#assistant-backend");
+const assistantAdvancedSettings = document.querySelector("#assistant-advanced-settings");
 const assistantReplyLength = document.querySelector("#assistant-reply-length");
 const assistantReasoningMode = document.querySelector("#assistant-reasoning-mode");
-const assistantScopeLabel = document.querySelector("#assistant-scope-label");
+const assistantReasoningSetting = document.querySelector("#assistant-reasoning-setting");
 const assistantContextMeta = document.querySelector("#assistant-context-meta");
 const assistantMessages = document.querySelector("#assistant-messages");
 const assistantEmpty = document.querySelector("#assistant-empty");
@@ -354,11 +436,14 @@ let sidebarInteractionMode = "pointer";
 let searchDebounceTimer = 0;
 let searchRequestController = null;
 let searchRequestSequence = 0;
+let immersionClockTimer = 0;
+let immersionOwnsFullscreen = false;
 let assistantRequestController = null;
 let assistantStatusTimer = 0;
 let assistantReady = false;
 let assistantRemoteDisabled = false;
 let assistantMasterDisabled = false;
+let assistantCloudBackendDisabled = false;
 let assistantPausedForRag = false;
 let assistantContextWindow = 0;
 let assistantConversationHistory = [];
@@ -369,6 +454,7 @@ let activeAssistantAnswerElements = null;
 let selectionPopoverCandidate = null;
 let selectionPopoverFrame = 0;
 let lastUtilityTrigger = tocToggle;
+let compactNavigationBeforeResize = isCompactNavigation();
 
 /* ---------------- 阅读位置记忆 ---------------- */
 
@@ -624,10 +710,207 @@ function presentLastReadPosition(note) {
   viewRoot.querySelector("#last-read-dismiss")?.addEventListener("click", dismissLastReadPrompt);
 }
 
+function isImmersionActive() {
+  return state.view === "note" && state.immersionMode;
+}
+
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function requestImmersionFullscreen() {
+  if (getFullscreenElement()) return false;
+
+  const target = document.documentElement;
+  const requestFullscreen = target.requestFullscreen || target.webkitRequestFullscreen;
+  if (!requestFullscreen) return false;
+
+  try {
+    immersionOwnsFullscreen = true;
+    const requestResult = target.requestFullscreen
+      ? target.requestFullscreen({ navigationUI: "hide" })
+      : requestFullscreen.call(target);
+    Promise.resolve(requestResult).catch(() => {
+      immersionOwnsFullscreen = false;
+    });
+    return true;
+  } catch (error) {
+    immersionOwnsFullscreen = false;
+    return false;
+  }
+}
+
+function exitImmersionFullscreen() {
+  const currentFullscreenElement = getFullscreenElement();
+  const shouldExit = immersionOwnsFullscreen && currentFullscreenElement === document.documentElement;
+  immersionOwnsFullscreen = false;
+  if (!shouldExit) return;
+
+  const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!exitFullscreen) return;
+
+  try {
+    Promise.resolve(exitFullscreen.call(document)).catch(() => {});
+  } catch (error) {
+    /* Visual immersion still exits when a browser declines its fullscreen request. */
+  }
+}
+
+function applyReadingTheme(theme, options = {}) {
+  const nextTheme = READING_THEMES.has(theme) ? theme : "light";
+  state.readingTheme = nextTheme;
+  document.documentElement.dataset.readingTheme = nextTheme;
+  readingThemeOptions.forEach((option) => {
+    option.setAttribute("aria-pressed", String(option.dataset.readingTheme === nextTheme));
+  });
+  if (options.persist !== false) rememberReadingTheme(nextTheme);
+}
+
+function updateImmersionClock() {
+  const now = new Date();
+  const dateText = `${IMMERSION_CLOCK_DATE_FORMATTER.format(now)} · ${IMMERSION_CLOCK_WEEKDAY_FORMATTER.format(now)}`;
+  const compactDateText = IMMERSION_CLOCK_COMPACT_DATE_FORMATTER.format(now);
+  const timeText = IMMERSION_CLOCK_TIME_FORMATTER.format(now);
+  immersionClock.dateTime = now.toISOString();
+  immersionClock.setAttribute("aria-label", `当前时间：${dateText} ${timeText}`);
+  immersionClockDate.textContent = dateText;
+  immersionClockCompactDate.textContent = compactDateText;
+  immersionClockTime.textContent = timeText;
+}
+
+function syncImmersionClock() {
+  const shouldRun = isImmersionActive() && !document.hidden;
+  if (!shouldRun) {
+    if (immersionClockTimer) window.clearInterval(immersionClockTimer);
+    immersionClockTimer = 0;
+    return;
+  }
+
+  updateImmersionClock();
+  if (!immersionClockTimer) immersionClockTimer = window.setInterval(updateImmersionClock, 1000);
+}
+
+function syncImmersionPresentation() {
+  const active = isImmersionActive();
+  const desktop = !isCompactNavigation();
+  const tocOpen = active && desktop && !state.immersiveTocCollapsed;
+  document.body.classList.toggle("immersion-mode", active);
+  document.body.classList.toggle("immersion-toc-open", tocOpen);
+}
+
+function updateImmersionControls() {
+  const isNote = state.view === "note";
+  const active = isImmersionActive();
+  const desktop = !isCompactNavigation();
+  const tocCollapsed = active && desktop && state.immersiveTocCollapsed;
+
+  syncImmersionPresentation();
+  topbarReadingUtility.hidden = !isNote;
+  printTrigger.toggleAttribute("inert", active);
+  if (active) printTrigger.setAttribute("aria-hidden", "true");
+  else printTrigger.removeAttribute("aria-hidden");
+  immersionClock.setAttribute("aria-hidden", String(!active));
+  syncImmersionClock();
+  readerControlDock.hidden = !isNote;
+  immersionToggle.hidden = !isNote;
+  immersionToggle.setAttribute("aria-pressed", String(active));
+  immersionToggle.setAttribute("aria-label", active ? "退出全屏沉浸阅读" : "进入全屏沉浸阅读");
+  immersionToggle.title = active ? "退出全屏沉浸阅读" : "进入全屏沉浸阅读";
+
+  if (active && desktop) {
+    tocToggle.setAttribute("aria-expanded", String(!tocCollapsed));
+    tocToggle.setAttribute("aria-label", tocCollapsed ? "展开本页目录" : "本页目录已展开");
+    tocToggle.title = tocCollapsed ? "展开本页目录" : "本页目录已展开";
+    tocClose.setAttribute("aria-label", "收起阅读工具");
+    tocClose.title = "收起阅读工具";
+  } else {
+    tocToggle.removeAttribute("title");
+    tocClose.removeAttribute("title");
+  }
+}
+
+function setImmersiveTocCollapsed(collapsed, options = {}) {
+  if (!isImmersionActive() || isCompactNavigation()) return;
+  const nextCollapsed = Boolean(collapsed);
+  if (state.immersiveTocCollapsed === nextCollapsed) return;
+
+  const readingAnchor = options.preserveAnchor === false ? null : captureReadingAnchor();
+  const moveFocusToTrigger = nextCollapsed && tocPanel.contains(document.activeElement);
+  state.immersiveTocCollapsed = nextCollapsed;
+  updateImmersionControls();
+  updateDrawerAccessibility();
+  if (moveFocusToTrigger) tocToggle.focus({ preventScroll: true });
+  restoreReadingAnchor(readingAnchor);
+}
+
+function setImmersionMode(enabled) {
+  if (state.view !== "note") return;
+  const nextMode = Boolean(enabled);
+  if (state.immersionMode === nextMode) return;
+
+  const readingAnchor = captureReadingAnchor() || stableReadingAnchor;
+  cleanupReadingAnchorRestore();
+  cancelSidebarAutoCollapse();
+  if (nextMode && isCompactNavigation()) closeTocNavigation();
+
+  state.immersionMode = nextMode;
+  // Each entry begins with both reading rails folded. Their regular-layout state stays untouched.
+  state.immersiveSidebarCollapsed = true;
+  state.immersiveTocCollapsed = nextMode;
+  updateNavigationToggle();
+  updateImmersionControls();
+  restoreReadingAnchor(readingAnchor, { settleDuration: SIDEBAR_LAYOUT_SETTLE_MS });
+
+  if (!nextMode && !state.sidebarCollapsed) requestAnimationFrame(scheduleSidebarAutoCollapse);
+}
+
+function enterImmersionMode() {
+  // Start the browser request directly from the button gesture; browsers reject delayed requests.
+  requestImmersionFullscreen();
+  setImmersionMode(true);
+}
+
+function exitImmersionMode() {
+  setImmersionMode(false);
+  exitImmersionFullscreen();
+}
+
+function toggleImmersionMode() {
+  if (isImmersionActive()) exitImmersionMode();
+  else enterImmersionMode();
+}
+
+function handleImmersionFullscreenChange() {
+  if (getFullscreenElement() === document.documentElement || !immersionOwnsFullscreen) return;
+
+  immersionOwnsFullscreen = false;
+  if (isImmersionActive()) setImmersionMode(false);
+}
+
+function handleImmersionFullscreenError() {
+  if (getFullscreenElement() !== document.documentElement) immersionOwnsFullscreen = false;
+}
+
 function updateBackToTopVisibility() {
-  const shouldShow = state.view === "note" && window.scrollY > 560;
-  if (backToTop.hidden === !shouldShow) return;
-  backToTop.hidden = !shouldShow;
+  const isNote = state.view === "note";
+  const shouldShow = isNote && window.scrollY > 560;
+
+  if (!isNote) {
+    backToTop.hidden = true;
+    backToTop.classList.remove("is-visible");
+    backToTop.setAttribute("aria-hidden", "true");
+    backToTop.setAttribute("tabindex", "-1");
+    backToTop.toggleAttribute("inert", true);
+    readerControlDock?.classList.remove("has-back-to-top");
+    return;
+  }
+
+  backToTop.hidden = false;
+  backToTop.classList.toggle("is-visible", shouldShow);
+  backToTop.setAttribute("aria-hidden", String(!shouldShow));
+  backToTop.tabIndex = shouldShow ? 0 : -1;
+  backToTop.toggleAttribute("inert", !shouldShow);
+  readerControlDock?.classList.toggle("has-back-to-top", shouldShow);
 }
 
 window.addEventListener("scroll", () => {
@@ -637,12 +920,18 @@ window.addEventListener("scroll", () => {
   hideSelectionAskAi();
 }, { passive: true });
 // 节流窗口内可能还没落盘，这两个事件直接同步写入，确保离开页面前的位置不丢。
-window.addEventListener("pagehide", saveScrollPosition);
+window.addEventListener("pagehide", () => {
+  saveScrollPosition();
+  if (immersionClockTimer) window.clearInterval(immersionClockTimer);
+  immersionClockTimer = 0;
+});
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     saveScrollPosition();
+    syncImmersionClock();
     return;
   }
+  syncImmersionClock();
   checkForPortalUpdate();
 });
 
@@ -852,15 +1141,24 @@ function updateDocumentTitle(view, note = null) {
 }
 
 function setViewMode(view, note = null) {
+  if (view !== "note" && (state.immersionMode || immersionOwnsFullscreen)) exitImmersionMode();
+
   state.view = view;
   const isHome = view === "home";
   const isOverview = view === "overview";
   const isNote = view === "note";
 
+  if (!isNote) {
+    state.immersionMode = false;
+    state.immersiveTocCollapsed = false;
+  }
+
   document.body.classList.toggle("view-home", isHome);
   document.body.classList.toggle("view-overview", isOverview);
   semesterPicker.hidden = isHome;
   currentNoteIndicator.hidden = !isNote;
+  printTrigger.hidden = !isNote;
+  printTrigger.disabled = !isNote;
   searchTrigger.hidden = isHome;
   navToggle.hidden = !isNote;
   sidebar.hidden = !isNote;
@@ -871,6 +1169,7 @@ function setViewMode(view, note = null) {
   assistantToggle.hidden = !isNote;
   tocScrim.hidden = !isNote;
   readingProgress.hidden = !isNote;
+  updateImmersionControls();
   updateBackToTopVisibility();
   semesterSelect.value = isHome ? "__home__" : portalData.id;
   brandHome.setAttribute("aria-label", isHome ? "学习门户首页" : "返回学习门户首页");
@@ -1045,10 +1344,10 @@ async function renderNote(note, options = {}) {
   stableReadingAnchor = null;
   const unit = getUnitForNote(note.id);
   renderCurrentNoteIndicator(note, unit);
-  updateAssistantScopeLabel(note, unit);
   refreshAssistantStatus();
   rememberNote(note.id);
   setViewMode("note", note);
+  printTrigger.disabled = true;
   libraryLink.removeAttribute("aria-current");
 
   viewRoot.innerHTML = `
@@ -1118,6 +1417,7 @@ async function renderNote(note, options = {}) {
     const article = viewRoot.querySelector("#markdown-article");
     article.innerHTML = renderMarkdownWithMath(markdown);
     enhanceMarkdownArticle(article);
+    printTrigger.disabled = false;
     buildTableOfContents();
     requestAnimationFrame(scheduleStableReadingAnchorCapture);
     if (options.targetAnchor) {
@@ -1145,6 +1445,37 @@ async function renderNote(note, options = {}) {
     tocNavigation.innerHTML = "";
     console.error(error);
   }
+}
+
+function restorePrintState() {
+  const restore = printRestoreState;
+  if (!restore) return;
+  printRestoreState = null;
+  document.title = restore.documentTitle;
+  document.body.classList.remove("is-printing");
+  restore.details.forEach(({ element, open }) => {
+    element.open = open;
+  });
+}
+
+function printCurrentNote() {
+  const note = getActiveNote();
+  const unit = note ? getUnitForNote(note.id) : null;
+  const article = viewRoot.querySelector("#markdown-article");
+  if (state.view !== "note" || !note || !unit || !article || printTrigger.disabled) return;
+
+  restorePrintState();
+  const details = [...article.querySelectorAll("details")].map((element) => ({ element, open: element.open }));
+  details.forEach(({ element }) => {
+    element.open = true;
+  });
+  printRestoreState = {
+    documentTitle: document.title,
+    details,
+  };
+  document.title = `${unit.code} · ${formatWeekLabel(note)} · ${note.title} — Study Portal`;
+  document.body.classList.add("is-printing");
+  window.print();
 }
 
 function enhanceMarkdownArticle(article) {
@@ -1277,7 +1608,13 @@ function showSelectionAskAi(candidate) {
     window.innerWidth - horizontalPadding,
     Math.max(horizontalPadding, candidate.rect.left + candidate.rect.width / 2),
   );
-  const placeBelow = candidate.rect.top < 74;
+  // Android WebView places its native text-selection toolbar above the selection. Put our
+  // reader action below it on compact screens whenever there is room, so “问 AI” remains
+  // reachable instead of sitting beneath the system toolbar.
+  const compact = isCompactNavigation();
+  const compactBottomReserve = 86;
+  const canPlaceBelow = candidate.rect.bottom + 58 <= window.innerHeight - compactBottomReserve;
+  const placeBelow = compact ? canPlaceBelow : candidate.rect.top < 74;
   selectionAskAi.style.left = `${left}px`;
   selectionAskAi.style.top = `${placeBelow ? candidate.rect.bottom : candidate.rect.top}px`;
   selectionAskAi.dataset.placement = placeBelow ? "below" : "above";
@@ -1308,9 +1645,10 @@ function setAssistantSelection(selection) {
   assistantInput.placeholder = selection.kind === "formula"
     ? "围绕这条公式提问…"
     : "围绕已引用正文提问…";
-  // “问 AI” should make the exact current section the evidence boundary by default. The user
-  // can still deliberately choose Week, Unit or all notes afterwards.
-  setAssistantScope("section");
+  // “问 AI” should make the exact current section the evidence boundary by default. Gemini has
+  // no automatic note retrieval, so its explicitly selected passage must not silently alter a
+  // hidden retrieval scope.
+  if (!isIndependentGeminiBackend()) setAssistantScope("section");
 }
 
 function clearAssistantSelection() {
@@ -1745,6 +2083,7 @@ function canAutoCollapseSidebar() {
   return (
     !isCompactNavigation() &&
     state.view !== "home" &&
+    !state.immersionMode &&
     !state.sidebarCollapsed &&
     !sidebar.matches(":hover") &&
     !sidebarEdgeToggle.matches(":hover") &&
@@ -1771,8 +2110,14 @@ function scheduleSidebarAutoCollapse() {
 
 function updateDrawerAccessibility() {
   const compact = isCompactNavigation();
-  const sidebarInactive = compact && !document.body.classList.contains("nav-open");
-  const tocInactive = compact && !document.body.classList.contains("toc-open");
+  const immersiveSidebarInactive = !compact && isImmersionActive() && state.immersiveSidebarCollapsed;
+  const sidebarInactive = (compact && !document.body.classList.contains("nav-open")) || immersiveSidebarInactive;
+  const immersiveTocInactive = !compact && isImmersionActive() && state.immersiveTocCollapsed;
+  const tocInactive = (compact && !document.body.classList.contains("toc-open")) || immersiveTocInactive;
+  const focusWasInSidebar = sidebarInactive && (
+    sidebar.contains(document.activeElement) || document.activeElement === sidebarEdgeToggle
+  );
+  const focusWasInToc = tocInactive && tocPanel.contains(document.activeElement);
 
   sidebar.toggleAttribute("inert", sidebarInactive);
   tocPanel.toggleAttribute("inert", tocInactive);
@@ -1780,6 +2125,13 @@ function updateDrawerAccessibility() {
   else sidebar.removeAttribute("aria-hidden");
   if (tocInactive) tocPanel.setAttribute("aria-hidden", "true");
   else tocPanel.removeAttribute("aria-hidden");
+  sidebarEdgeToggle.removeAttribute("aria-hidden");
+  sidebarEdgeToggle.removeAttribute("tabindex");
+
+  if (focusWasInToc) tocToggle.focus({ preventScroll: true });
+  if (focusWasInSidebar) {
+    (!compact && isImmersionActive() ? sidebarEdgeToggle : navToggle).focus({ preventScroll: true });
+  }
 }
 
 function openMobileNavigation() {
@@ -1792,34 +2144,53 @@ function openMobileNavigation() {
 }
 
 function setUtilityTab(tab, options = {}) {
-  const nextTab = tab === "assistant" ? "assistant" : "toc";
+  const nextTab = ["toc", "preferences", "assistant"].includes(tab) ? tab : "toc";
+  if (!isCompactNavigation() && isImmersionActive() && state.immersiveTocCollapsed) {
+    setImmersiveTocCollapsed(false);
+  }
   state.utilityTab = nextTab;
+  const showingToc = nextTab === "toc";
+  const showingPreferences = nextTab === "preferences";
   const showingAssistant = nextTab === "assistant";
-  tocTab.setAttribute("aria-selected", String(!showingAssistant));
+  tocTab.setAttribute("aria-selected", String(showingToc));
+  preferencesTab.setAttribute("aria-selected", String(showingPreferences));
   assistantTab.setAttribute("aria-selected", String(showingAssistant));
-  tocView.hidden = showingAssistant;
+  tocView.hidden = !showingToc;
+  preferencesView.hidden = !showingPreferences;
   assistantView.hidden = !showingAssistant;
-  tocPanel.setAttribute("aria-label", showingAssistant ? "问笔记" : "本页目录");
-  tocClose.setAttribute("aria-label", showingAssistant ? "关闭问笔记" : "关闭本页目录");
+  const panelLabel = showingAssistant ? "问笔记" : showingPreferences ? "阅读外观" : "本页目录";
+  tocPanel.setAttribute("aria-label", panelLabel);
+  tocClose.setAttribute("aria-label", `关闭${panelLabel}`);
   if (showingAssistant) refreshAssistantStatus();
-  if (options.focus) (showingAssistant ? assistantTab : tocTab).focus();
+  if (options.focus) (showingAssistant ? assistantTab : showingPreferences ? preferencesTab : tocTab).focus();
 }
 
 function openUtilityPanel(tab = "toc", trigger = null) {
   if (!isCompactNavigation() || state.view !== "note") return;
   closeMobileNavigation();
   setUtilityTab(tab);
-  lastUtilityTrigger = trigger || (tab === "assistant" ? assistantToggle : tocToggle);
+  const showingAssistant = state.utilityTab === "assistant";
+  const showingPreferences = state.utilityTab === "preferences";
+  lastUtilityTrigger = trigger || (showingAssistant ? assistantToggle : tocToggle);
   document.body.classList.add("toc-open");
-  tocToggle.setAttribute("aria-expanded", String(tab === "toc"));
-  assistantToggle.setAttribute("aria-expanded", String(tab === "assistant"));
-  tocToggle.setAttribute("aria-label", tab === "toc" ? "关闭本页目录" : "打开本页目录");
-  assistantToggle.setAttribute("aria-label", tab === "assistant" ? "关闭问笔记" : "打开问笔记");
+  tocToggle.setAttribute("aria-expanded", String(!showingAssistant));
+  assistantToggle.setAttribute("aria-expanded", String(showingAssistant));
+  tocToggle.setAttribute(
+    "aria-label",
+    showingAssistant ? "打开本页目录" : showingPreferences ? "关闭阅读外观" : "关闭本页目录",
+  );
+  assistantToggle.setAttribute("aria-label", showingAssistant ? "关闭问笔记" : "打开问笔记");
   updateDrawerAccessibility();
   tocClose.focus();
 }
 
 function openTocNavigation() {
+  if (!isCompactNavigation() && isImmersionActive()) {
+    setUtilityTab("toc");
+    setImmersiveTocCollapsed(false);
+    tocClose.focus({ preventScroll: true });
+    return;
+  }
   openUtilityPanel("toc", tocToggle);
 }
 
@@ -1828,6 +2199,10 @@ function openAssistantPanel() {
 }
 
 function closeTocNavigation(restoreFocus = false) {
+  if (!isCompactNavigation() && isImmersionActive()) {
+    setImmersiveTocCollapsed(true);
+    return;
+  }
   const wasOpen = document.body.classList.contains("toc-open");
   document.body.classList.remove("toc-open");
   tocToggle.setAttribute("aria-expanded", "false");
@@ -1940,8 +2315,9 @@ function restoreReadingAnchor(anchor, options = {}) {
 }
 
 function updateNavigationToggle() {
+  syncImmersionPresentation();
   const desktop = !isCompactNavigation();
-  const collapsed = desktop && state.sidebarCollapsed;
+  const collapsed = desktop && (isImmersionActive() ? state.immersiveSidebarCollapsed : state.sidebarCollapsed);
   if (desktop) {
     document.body.classList.remove("nav-open", "toc-open");
     tocToggle.setAttribute("aria-expanded", "false");
@@ -1957,6 +2333,7 @@ function updateNavigationToggle() {
   sidebarEdgeToggle.setAttribute("aria-expanded", String(!collapsed));
   sidebarEdgeToggle.setAttribute("aria-label", collapsed ? "展开课程导航" : "收起课程导航");
   updateDrawerAccessibility();
+  updateImmersionControls();
 }
 
 function togglePrimaryNavigation() {
@@ -1964,10 +2341,11 @@ function togglePrimaryNavigation() {
     const readingAnchor = captureReadingAnchor();
     cleanupReadingAnchorRestore();
     cancelSidebarAutoCollapse();
-    state.sidebarCollapsed = !state.sidebarCollapsed;
+    if (isImmersionActive()) state.immersiveSidebarCollapsed = !state.immersiveSidebarCollapsed;
+    else state.sidebarCollapsed = !state.sidebarCollapsed;
     updateNavigationToggle();
     restoreReadingAnchor(readingAnchor);
-    if (!state.sidebarCollapsed) requestAnimationFrame(scheduleSidebarAutoCollapse);
+    if (!isImmersionActive() && !state.sidebarCollapsed) requestAnimationFrame(scheduleSidebarAutoCollapse);
     return;
   }
   openMobileNavigation();
@@ -1983,29 +2361,31 @@ function closeMobileNavigation(restoreFocus = false) {
 
 /* ---------------- Optional local assistant interface ---------------- */
 
-function updateAssistantScopeLabel(note = getActiveNote(), unit = getUnitForNote(note?.id)) {
-  if (!note || !unit) {
-    assistantScopeLabel.textContent = "当前章节";
-    return;
-  }
-  const sectionAnchor = getAssistantSectionAnchor();
-  const sectionHeading = sectionAnchor && document.getElementById(sectionAnchor)?.textContent?.trim();
-  const labels = {
-    section: `${unit.code} · ${formatWeekLabel(note)} · ${sectionHeading || "当前章节"}`,
-    week: `${unit.code} · ${formatWeekLabel(note)}`,
-    unit: `${unit.code} · ${unit.name}`,
-    all: `${portalData.label} · ${flatNotes.length} 份笔记`,
-  };
-  assistantScopeLabel.textContent = labels[state.assistantScope] || labels.section;
-}
-
 function setAssistantScope(scope) {
   const supported = new Set(["section", "week", "unit", "all"]);
   state.assistantScope = supported.has(scope) ? scope : "section";
-  assistantScopeButtons.forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.assistantScope === state.assistantScope));
-  });
-  updateAssistantScopeLabel();
+  if (assistantScopeSelect) assistantScopeSelect.value = state.assistantScope;
+}
+
+function isIndependentGeminiBackend(backend = state.assistantBackend) {
+  return backend === "gemini_flash";
+}
+
+function isCloudAssistantBackend(backend = state.assistantBackend) {
+  return backend === "gemini_flash" || backend === "deepseek_v4_flash";
+}
+
+function applyAssistantBackendPresentation() {
+  const independent = isIndependentGeminiBackend();
+  const cloud = isCloudAssistantBackend();
+  const controlsDisabled = assistantRemoteDisabled || assistantMasterDisabled || assistantCloudBackendDisabled;
+  if (assistantBackend) assistantBackend.value = state.assistantBackend;
+  if (assistantScopeControl) assistantScopeControl.hidden = independent;
+  if (assistantScopeSelect) assistantScopeSelect.disabled = controlsDisabled || independent;
+  if (assistantAdvancedSettings) assistantAdvancedSettings.hidden = cloud;
+  assistantReplyLength.disabled = controlsDisabled || cloud;
+  assistantReasoningMode.disabled = controlsDisabled || cloud;
+  if (assistantReasoningSetting) assistantReasoningSetting.hidden = cloud;
 }
 
 function getAssistantSectionAnchor() {
@@ -2019,6 +2399,12 @@ function getAssistantSectionAnchor() {
 }
 
 function updateAssistantContextMeta(payload = {}) {
+  if (isCloudAssistantBackend()) {
+    assistantContextWindow = 0;
+    assistantContextMeta.textContent = "云端输出不设 Portal 长度上限，由模型与账户配额决定。";
+    assistantContextMeta.title = "不会继承本地 Qwen 的上下文或回答长度设置。";
+    return;
+  }
   const reportedContextWindow = Number(payload.contextWindow ?? payload.contextTokens);
   if (Number.isFinite(reportedContextWindow) && reportedContextWindow > 0) {
     assistantContextWindow = reportedContextWindow;
@@ -2085,25 +2471,28 @@ function setAssistantReplyTokenBudget(value) {
 function setAssistantStatus(payload = {}) {
   const statusState = payload.state || (payload.ready ? "ready" : "unavailable");
   assistantRemoteDisabled = statusState === "remote_disabled";
+  assistantCloudBackendDisabled = statusState === "cloud_disabled" || payload.cloudEnabled === false;
   assistantPausedForRag = statusState === "paused_for_rag";
   // The host owns the master switch. A browser may report its state but must not
   // revive a generator that its owner deliberately unloaded.
   assistantMasterDisabled = payload.enabled === false
     || statusState === "stopping"
     || /^Local AI is off\./i.test(String(payload.message || ""));
-  assistantReady = Boolean(payload.ready) && !assistantRemoteDisabled && !assistantMasterDisabled;
+  assistantReady = Boolean(payload.ready) && !assistantRemoteDisabled && !assistantMasterDisabled && !assistantCloudBackendDisabled;
   assistantStatus.dataset.state = statusState;
   assistantModelLabel.dataset.state = statusState;
   updateAssistantContextMeta(payload);
 
   const labels = {
-    ready: "本地模型已就绪",
-    starting: "本地模型启动中…",
-    checking: "正在检查本地模型…",
-    unavailable: "本地模型暂不可用",
-    remote_disabled: "仅限私有主机使用",
-    paused_for_rag: "内容索引更新中，AI 暂时暂停",
-    stopped: assistantMasterDisabled ? "Local AI 已被主机关闭" : "本地模型未加载",
+    ready: "可用",
+    starting: "启动中",
+    checking: "检查中",
+    unavailable: "暂不可用",
+    not_configured: "未配置",
+    cloud_disabled: "已关闭",
+    remote_disabled: "不可用",
+    paused_for_rag: "索引中",
+    stopped: assistantMasterDisabled ? "已关闭" : "未加载",
   };
   assistantStatusLabel.textContent = labels[statusState] || labels.unavailable;
   updateAssistantModelLabel(payload, statusState);
@@ -2118,13 +2507,15 @@ function setAssistantStatus(payload = {}) {
 
   const showRecovery = !assistantReady && statusState !== "checking";
   assistantRecovery.hidden = !showRecovery;
-  assistantRetry.hidden = assistantRemoteDisabled || assistantMasterDisabled;
+  assistantRetry.hidden = assistantRemoteDisabled || assistantMasterDisabled || assistantCloudBackendDisabled;
   assistantRetry.disabled = statusState === "starting";
   assistantRetry.textContent = statusState === "starting"
     ? "正在启动…"
     : (assistantPausedForRag ? "暂停索引并恢复 AI" : "重新启动模型");
   assistantRecoveryMessage.textContent = assistantRemoteDisabled
     ? "本地 AI 仅在私有主机中可用；此浏览器仍可阅读与搜索已配置的内容。"
+    : (assistantCloudBackendDisabled
+      ? (payload.message || "该云端模型已在 iQOO App 关闭；笔记阅读与搜索不受影响。")
     : (assistantMasterDisabled
       ? "Local AI 已由主机关闭。请在私有部署中重新开启；浏览器阅读与搜索不受影响。"
     : (assistantPausedForRag
@@ -2133,28 +2524,29 @@ function setAssistantStatus(payload = {}) {
     statusState === "starting"
       ? "已配置的本地模型正在载入；内容阅读与搜索保持可用。"
       : "AI 服务暂时无法启动，笔记阅读与搜索不受影响。"
-    ))));
-  const assistantControlsDisabled = assistantRemoteDisabled || assistantMasterDisabled;
+    )))));
+  const assistantControlsDisabled = assistantRemoteDisabled || assistantMasterDisabled || assistantCloudBackendDisabled;
   assistantInput.disabled = assistantControlsDisabled;
-  assistantReplyLength.disabled = assistantControlsDisabled;
-  assistantReasoningMode.disabled = assistantControlsDisabled;
-  assistantScopeButtons.forEach((button) => { button.disabled = assistantControlsDisabled; });
+  assistantReplyLength.disabled = assistantControlsDisabled || isCloudAssistantBackend();
+  assistantReasoningMode.disabled = assistantControlsDisabled || isCloudAssistantBackend();
+  if (assistantScopeSelect) assistantScopeSelect.disabled = assistantControlsDisabled;
   assistantClear.disabled = assistantControlsDisabled;
   const emptyTitle = assistantEmpty.querySelector("h3");
-  const emptyDescription = assistantEmpty.querySelector("p");
-  if (assistantRemoteDisabled) {
-    if (emptyTitle) emptyTitle.textContent = "笔记 AI 仅在私有主机中使用";
-    if (emptyDescription) emptyDescription.textContent = "当前浏览器仍可阅读、搜索与打开内容；本地模型与来源接口不会对外开放。";
+  if (isIndependentGeminiBackend() && !assistantRemoteDisabled) {
+    if (emptyTitle) emptyTitle.textContent = "开始提问";
+  } else if (assistantRemoteDisabled) {
+    if (emptyTitle) emptyTitle.textContent = "AI 暂不可用";
   } else if (assistantMasterDisabled) {
-    if (emptyTitle) emptyTitle.textContent = "请先在私有主机中开启 Local AI";
-    if (emptyDescription) emptyDescription.textContent = "主机关闭生成模型时可释放内存；索引可在后台条件允许时继续。";
+    if (emptyTitle) emptyTitle.textContent = "Local AI 已关闭";
+  } else if (assistantCloudBackendDisabled) {
+    if (emptyTitle) emptyTitle.textContent = "云端模型已关闭";
   } else if (assistantPausedForRag) {
     if (emptyTitle) emptyTitle.textContent = "正在更新笔记语义索引";
-    if (emptyDescription) emptyDescription.textContent = "Local AI 会在索引完成后自动恢复。若现在需要提问，可选择“暂停索引并恢复 AI”。";
   } else {
-    if (emptyTitle) emptyTitle.textContent = "从当前范围开始提问";
-    if (emptyDescription) emptyDescription.textContent = "回答会先列出笔记依据，再给出解释与可直接复习的英文表达。";
+    if (emptyTitle) emptyTitle.textContent = "开始提问";
   }
+
+  applyAssistantBackendPresentation();
 
   window.clearTimeout(assistantStatusTimer);
   if (statusState === "starting") {
@@ -2166,9 +2558,11 @@ function updateAssistantModelLabel(payload, statusState) {
   const modelId = String(payload.modelId || "").trim();
   const backend = String(payload.backend || "").trim();
   const contextTokens = Number(payload.contextTokens);
-  let label = "本地模型未就绪";
+  let label = isIndependentGeminiBackend() ? "Gemini 云端对话" : "AI 未就绪";
   if (statusState === "remote_disabled") {
     label = "仅私有主机中的本地 AI 可用";
+  } else if (assistantCloudBackendDisabled) {
+    label = "云端模型已在 App 关闭";
   } else if (assistantMasterDisabled) {
     label = "Local AI 已由主机关闭";
   } else if (assistantPausedForRag) {
@@ -2179,7 +2573,11 @@ function updateAssistantModelLabel(payload, statusState) {
     const context = Number.isFinite(contextTokens) && contextTokens > 0
       ? ` · ${new Intl.NumberFormat("en-AU").format(contextTokens)} ctx`
       : "";
-    label = `本地 ${modelId}${backend ? ` · ${backend}` : " · 后端待报告"}${context}`;
+    label = isIndependentGeminiBackend()
+      ? `${modelId} · 独立云端对话 · 可发送手动选中正文`
+      : (state.assistantBackend === "deepseek_v4_flash"
+        ? `${modelId} · Portal RAG`
+        : `本地 ${modelId}${backend ? ` · ${backend}` : " · 后端待报告"}${context}`);
   }
   assistantModelLabelText.textContent = label;
   assistantModelLabel.title = payload.message || label;
@@ -2188,7 +2586,7 @@ function updateAssistantModelLabel(payload, statusState) {
 async function refreshAssistantStatus() {
   if (state.view !== "note") return;
   try {
-    const response = await fetch("/api/assistant/status", { cache: "no-store" });
+    const response = await fetch(`/api/assistant/status?backend=${encodeURIComponent(state.assistantBackend)}`, { cache: "no-store" });
     const payload = await response.json().catch(() => ({}));
     if (response.status === 403 && (payload.error === "assistant_loopback_only" || payload.error === "assistant_private_network_only")) {
       setAssistantStatus({
@@ -2210,7 +2608,7 @@ async function refreshAssistantStatus() {
 }
 
 async function retryAssistantModel() {
-  if (assistantRemoteDisabled || assistantMasterDisabled) return;
+  if (assistantRemoteDisabled || assistantMasterDisabled || assistantCloudBackendDisabled) return;
   setAssistantStatus({
     state: "starting",
     ready: false,
@@ -2247,7 +2645,7 @@ async function retryAssistantModel() {
 }
 
 function clearAssistantConversation() {
-  if (assistantRemoteDisabled || assistantMasterDisabled) return;
+  if (assistantRemoteDisabled || assistantMasterDisabled || assistantCloudBackendDisabled) return;
   const previousConversationId = assistantConversationId;
   stopAssistantGeneration();
   assistantRequestController = null;
@@ -2482,6 +2880,7 @@ function normalizeAssistantSource(source) {
     weekLabel: String(source.weekLabel || (note ? formatWeekLabel(note) : titleParts[1] || "来源")),
     heading: String(source.heading || titleParts.slice(2).join(" · ") || source.title || "已授权笔记片段"),
     locator,
+    isWeb: String(source.kind || "").toLowerCase() === "web" && /^https:\/\//i.test(locator),
   };
 }
 
@@ -2523,8 +2922,13 @@ function renderAssistantSources(sourceItems, elements) {
   const sourceMap = assistantSourceDisplayMap(sourceItems);
   for (const source of sourceMap.values()) {
     const canOpen = Boolean(source.noteId) && flatNotes.some((note) => note.id === source.noteId);
-    const item = document.createElement(canOpen ? "button" : "div");
+    const item = document.createElement(canOpen ? "button" : (source.isWeb ? "a" : "div"));
     if (canOpen) item.type = "button";
+    if (source.isWeb) {
+      item.href = source.locator;
+      item.target = "_blank";
+      item.rel = "noreferrer";
+    }
     item.className = "assistant-source";
     item.innerHTML = `<span>${escapeHtml(source.displayId)}</span><strong>${escapeHtml(source.unitCode)} · ${escapeHtml(source.weekLabel)}</strong><em>${escapeHtml(source.heading)}</em>`;
     if (canOpen) {
@@ -2721,10 +3125,11 @@ async function sendAssistantQuestion(question, selection = null) {
       body: JSON.stringify({
         conversationId: assistantConversationId,
         query: question,
-        maxTokens: state.assistantReplyTokenBudget || undefined,
-        reasoningMode: state.assistantReasoningMode || undefined,
-        history: buildAssistantHistoryPayload(),
-        scope: {
+        inferenceBackend: state.assistantBackend,
+        maxTokens: isCloudAssistantBackend() ? undefined : (state.assistantReplyTokenBudget || undefined),
+        reasoningMode: isCloudAssistantBackend() ? undefined : (state.assistantReasoningMode || undefined),
+        history: isIndependentGeminiBackend() ? undefined : buildAssistantHistoryPayload(),
+        scope: isIndependentGeminiBackend() ? undefined : {
           type: state.assistantScope,
           ...buildAssistantScopePayload(),
         },
@@ -2740,7 +3145,13 @@ async function sendAssistantQuestion(question, selection = null) {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.message || `AI 服务返回 HTTP ${response.status}`);
+      const failure = {
+        ...payload,
+        code: payload.code || payload.error || "",
+      };
+      const error = new Error(payload.message || `AI 服务返回 HTTP ${response.status}`);
+      error.assistantFailure = failure;
+      throw error;
     }
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
@@ -2877,25 +3288,30 @@ async function sendAssistantQuestion(question, selection = null) {
       } else {
         elements.answer.textContent = "已停止当前页面接收。";
       }
-    } else {
-      const failure = error.assistantFailure || {};
-      if (visibleAnswerText) {
-        elements.answer.removeAttribute("role");
-        if (validatedParagraphs.length) {
-          renderAssistantVerifiedParagraphs(elements, validatedParagraphs, receivedSources);
-        } else {
-          elements.answer.innerHTML = renderAssistantMarkdown(visibleAnswerText);
-        }
       } else {
-        elements.answer.textContent = failure.contextFull
-          ? "本轮上下文已满，请缩小范围后重新提问。"
-          : "AI 服务暂时无法完成回答。";
+        const failure = error.assistantFailure || {};
+        const scopeNoEvidence = failure.code === "scope_no_evidence";
+        if (visibleAnswerText) {
+          elements.answer.removeAttribute("role");
+          if (validatedParagraphs.length) {
+            renderAssistantVerifiedParagraphs(elements, validatedParagraphs, receivedSources);
+          } else {
+            elements.answer.innerHTML = renderAssistantMarkdown(visibleAnswerText);
+          }
+        } else {
+          elements.answer.textContent = scopeNoEvidence
+            ? "当前范围内没有足够的已索引笔记依据。"
+            : (failure.contextFull
+              ? "本轮上下文已满，请缩小范围后重新提问。"
+              : "AI 服务暂时无法完成回答。");
+        }
+        elements.warning.textContent = scopeNoEvidence
+          ? "为避免跨范围猜测，系统没有自动扩大检索范围。请将检索范围改为“当前 Week”、“当前 Unit”或“全部笔记”后重试。"
+          : (failure.contextFull
+            ? contextLimitWarning(failure)
+            : (error.message || "请稍后重试；笔记阅读不受影响。"));
+        refreshAssistantStatus();
       }
-      elements.warning.textContent = failure.contextFull
-        ? contextLimitWarning(failure)
-        : (error.message || "请稍后重试；笔记阅读不受影响。");
-      refreshAssistantStatus();
-    }
   } finally {
     elements.turn.classList.remove("is-streaming");
     if (activeAssistantAnswerElements === elements) activeAssistantAnswerElements = null;
@@ -3066,6 +3482,7 @@ assistantToggle.addEventListener("click", openAssistantPanel);
 tocClose.addEventListener("click", () => closeTocNavigation(true));
 tocScrim.addEventListener("click", () => closeTocNavigation(true));
 tocTab.addEventListener("click", () => setUtilityTab("toc"));
+preferencesTab.addEventListener("click", () => setUtilityTab("preferences"));
 assistantTab.addEventListener("click", () => setUtilityTab("assistant"));
 assistantRetry.addEventListener("click", retryAssistantModel);
 assistantClear.addEventListener("click", clearAssistantConversation);
@@ -3079,6 +3496,10 @@ selectionAskAi.addEventListener("click", () => {
   hideSelectionAskAi();
   window.getSelection()?.removeAllRanges();
 });
+immersionToggle.addEventListener("click", toggleImmersionMode);
+readingThemeOptions.forEach((option) => {
+  option.addEventListener("click", () => applyReadingTheme(option.dataset.readingTheme));
+});
 backToTop.addEventListener("click", () => {
   window.scrollTo({
     top: 0,
@@ -3086,10 +3507,14 @@ backToTop.addEventListener("click", () => {
   });
 });
 lastReadMarker.addEventListener("click", jumpToLastReadPosition);
-assistantScopeButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    setAssistantScope(button.dataset.assistantScope);
-  });
+assistantScopeSelect.addEventListener("change", () => setAssistantScope(assistantScopeSelect.value));
+assistantBackend.addEventListener("change", () => {
+  const selected = assistantBackend.value;
+  if (!ASSISTANT_BACKEND_NAMES.has(selected)) return;
+  state.assistantBackend = selected;
+  rememberBrowserAssistantBackend(selected);
+  applyAssistantBackendPresentation();
+  refreshAssistantStatus();
 });
 assistantReplyLength.addEventListener("change", () => setAssistantReplyTokenBudget(assistantReplyLength.value));
 assistantReasoningMode.addEventListener("change", () => {
@@ -3124,6 +3549,7 @@ semesterSelect.addEventListener("change", () => {
   else renderOverview();
 });
 searchTrigger.addEventListener("click", openSearch);
+printTrigger.addEventListener("click", printCurrentNote);
 searchClose.addEventListener("click", () => searchDialog.close());
 searchInput.addEventListener("input", (event) => scheduleFullTextSearch(event.target.value));
 document.addEventListener("selectionchange", scheduleSelectionAskAi);
@@ -3137,12 +3563,24 @@ document.addEventListener("keydown", (event) => {
       openSearch();
     }
   }
+  if (event.key === "Escape" && searchDialog.open) return;
   if (event.key === "Escape" && document.body.classList.contains("toc-open")) {
     closeTocNavigation(true);
   } else if (event.key === "Escape" && document.body.classList.contains("nav-open")) {
     closeMobileNavigation(true);
+  } else if (event.key === "Escape" && isImmersionActive()) {
+    if (!isCompactNavigation() && !state.immersiveTocCollapsed) {
+      setImmersiveTocCollapsed(true);
+    } else {
+      exitImmersionMode();
+    }
   }
 });
+
+document.addEventListener("fullscreenchange", handleImmersionFullscreenChange);
+document.addEventListener("webkitfullscreenchange", handleImmersionFullscreenChange);
+document.addEventListener("fullscreenerror", handleImmersionFullscreenError);
+document.addEventListener("webkitfullscreenerror", handleImmersionFullscreenError);
 
 document.addEventListener(
   "pointerdown",
@@ -3170,6 +3608,15 @@ window.addEventListener("hashchange", () => {
 window.addEventListener("resize", () => {
   hideSelectionAskAi();
   positionLastReadMarker();
+  const compactNavigation = isCompactNavigation();
+  if (!compactNavigation && compactNavigationBeforeResize) {
+    // A mobile utility drawer has no desktop equivalent in immersion mode; keep the rail folded.
+    state.immersiveTocCollapsed = true;
+  }
+  if (compactNavigation && !compactNavigationBeforeResize && state.immersionMode) {
+    state.immersiveTocCollapsed = true;
+  }
+  compactNavigationBeforeResize = compactNavigation;
   if (!resizeReadingAnchor) resizeReadingAnchor = stableReadingAnchor || captureReadingAnchor();
   updateNavigationToggle();
   scheduleSidebarAutoCollapse();
@@ -3181,9 +3628,13 @@ window.addEventListener("resize", () => {
   }, 520);
 });
 
+window.addEventListener("afterprint", restorePrintState);
+
 if (state.view === "note") setSingleExpandedUnit(getActiveNote()?.unitCode);
 renderNavigation();
+applyReadingTheme(state.readingTheme, { persist: false });
 setUtilityTab("toc");
+applyAssistantBackendPresentation();
 if (!window.location.hash || window.location.hash === "#home") renderLibraryHome({ preserveUrl: true });
 else if (window.location.hash === "#overview") renderOverview({ preserveUrl: true });
 else if (getActiveNote()) renderNote(getActiveNote(), { restoreScroll: true });

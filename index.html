@@ -8,8 +8,22 @@
       content="A local-first, content-agnostic Markdown study portal."
     />
     <title>Study Portal</title>
+    <script>
+      (() => {
+        try {
+          const savedTheme = localStorage.getItem("study-portal-reading-theme");
+          if (["light", "warm", "dark"].includes(savedTheme)) {
+            document.documentElement.dataset.readingTheme = savedTheme;
+          }
+        } catch (error) {
+          // A private browser may not expose local storage; the default light theme still works.
+        }
+      })();
+    </script>
+    <link rel="icon" type="image/png" sizes="256x256" href="favicon.png?v=20260903-usyd-shield-1" />
+    <link rel="apple-touch-icon" href="favicon.png?v=20260903-usyd-shield-1" />
     <link rel="stylesheet" href="vendor/katex/katex.min.css" />
-  <link rel="stylesheet" href="styles.css?v=20260831-toc-hierarchy-1" />
+  <link rel="stylesheet" href="styles.css?v=20260915-reading-settings-1" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到笔记正文</a>
@@ -35,6 +49,7 @@
           aria-label="The University of Sydney Study Portal 首页"
         >
           <img class="brand__usyd-logo" src="USydLogoBlack.svg.png" alt="" />
+          <span class="brand__divider" aria-hidden="true"></span>
           <span class="brand__product">Study Portal</span>
         </button>
       </div>
@@ -59,6 +74,28 @@
             <span class="current-note-indicator__week" id="current-note-week">Week</span>
             <span class="current-note-indicator__week-short" id="current-note-week-short">W</span>
           </span>
+        </div>
+        <div class="topbar__reading-utility" id="topbar-reading-utility" hidden>
+          <button
+            class="print-trigger"
+            id="print-trigger"
+            type="button"
+            aria-label="打印当前笔记或保存为 A4 PDF"
+            title="打印当前笔记或保存为 A4 PDF"
+            hidden
+            disabled
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M7 8V4.5h10V8M7 16H5.5A1.5 1.5 0 0 1 4 14.5v-5A1.5 1.5 0 0 1 5.5 8h13A1.5 1.5 0 0 1 20 9.5v5a1.5 1.5 0 0 1-1.5 1.5H17" />
+              <path d="M7 13.5h10v6H7zM17.5 11.5h.01" />
+            </svg>
+            <span>打印 / PDF</span>
+          </button>
+          <time class="immersion-clock" id="immersion-clock" aria-hidden="true">
+            <span class="immersion-clock__date" id="immersion-clock-date"></span>
+            <span class="immersion-clock__date immersion-clock__date--compact" id="immersion-clock-date-compact"></span>
+            <span class="immersion-clock__time" id="immersion-clock-time"></span>
+          </time>
         </div>
         <button class="search-trigger" id="search-trigger" type="button" aria-label="搜索笔记">
           <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -166,11 +203,26 @@
 
       <button class="toc-scrim" id="toc-scrim" type="button" aria-label="关闭阅读工具" hidden></button>
 
-      <button class="back-to-top" id="back-to-top" type="button" aria-label="回到页首" title="回到页首" hidden>
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="m7 11 5-5 5 5M12 6v12" />
-        </svg>
-      </button>
+      <div class="reader-control-dock" id="reader-control-dock" role="group" aria-label="阅读工具" hidden>
+        <button
+          class="immersion-toggle"
+          id="immersion-toggle"
+          type="button"
+          aria-pressed="false"
+          aria-label="开启沉浸阅读"
+          title="开启沉浸阅读"
+          hidden
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" />
+          </svg>
+        </button>
+        <button class="back-to-top" id="back-to-top" type="button" aria-label="回到页首" title="回到页首" hidden>
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m7 11 5-5 5 5M12 6v12" />
+          </svg>
+        </button>
+      </div>
 
       <button class="selection-ask-ai" id="selection-ask-ai" type="button" aria-label="询问选中的正文" hidden>
         <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -197,6 +249,14 @@
             >本页目录</button>
             <button
               class="utility-tab"
+              id="preferences-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="preferences-view"
+            >阅读外观</button>
+            <button
+              class="utility-tab"
               id="assistant-tab"
               type="button"
               role="tab"
@@ -217,6 +277,34 @@
         </section>
 
         <section
+          class="utility-view preferences-view"
+          id="preferences-view"
+          role="tabpanel"
+          aria-labelledby="preferences-tab"
+          hidden
+        >
+          <p class="utility-eyebrow">阅读外观</p>
+          <div class="reading-preferences" role="group" aria-label="阅读配色">
+            <span class="reading-preferences__label">阅读配色</span>
+            <p class="reading-preferences__hint">选择适合长时间阅读的页面配色。</p>
+            <div class="reading-theme-options">
+              <button class="reading-theme-option" type="button" data-reading-theme="light" aria-pressed="true">
+                <span class="reading-theme-option__swatch reading-theme-option__swatch--light" aria-hidden="true"></span>
+                <span>白昼</span>
+              </button>
+              <button class="reading-theme-option" type="button" data-reading-theme="warm" aria-pressed="false">
+                <span class="reading-theme-option__swatch reading-theme-option__swatch--warm" aria-hidden="true"></span>
+                <span>暖纸</span>
+              </button>
+              <button class="reading-theme-option" type="button" data-reading-theme="dark" aria-pressed="false">
+                <span class="reading-theme-option__swatch reading-theme-option__swatch--dark" aria-hidden="true"></span>
+                <span>夜间</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section
           class="utility-view assistant-view"
           id="assistant-view"
           role="tabpanel"
@@ -232,14 +320,14 @@
                   <span id="assistant-status-label">正在检查本地模型…</span>
                 </span>
               </div>
-              <p>可选的本地内容助手</p>
             </div>
             <button
               class="assistant-clear"
               id="assistant-clear"
               type="button"
               title="清空当前会话及其上下文；下一轮从全新对话开始"
-            >清空对话</button>
+              aria-label="清空对话"
+            >清空</button>
           </div>
 
           <div class="assistant-recovery" id="assistant-recovery" hidden>
@@ -249,47 +337,58 @@
 
           <p class="assistant-session-notice" id="assistant-session-notice" aria-live="polite" hidden></p>
 
-          <div class="assistant-scope" role="group" aria-label="检索范围">
-            <button type="button" data-assistant-scope="section" aria-pressed="true">当前章节</button>
-            <button type="button" data-assistant-scope="week" aria-pressed="false">当前 Week</button>
-            <button type="button" data-assistant-scope="unit" aria-pressed="false">当前 Unit</button>
-            <button type="button" data-assistant-scope="all" aria-pressed="false">全部笔记</button>
-          </div>
-          <p class="assistant-scope-label" id="assistant-scope-label">当前笔记</p>
+          <label class="assistant-scope-control" id="assistant-scope-control" for="assistant-scope">
+            <span>范围</span>
+            <select id="assistant-scope" aria-label="检索范围">
+              <option value="section">当前章节</option>
+              <option value="week">当前 Week</option>
+              <option value="unit">当前 Unit</option>
+              <option value="all">全部笔记</option>
+            </select>
+          </label>
 
           <div class="assistant-messages" id="assistant-messages" aria-live="polite">
             <div class="assistant-empty" id="assistant-empty">
-              <span class="assistant-empty__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><path d="M7 18.5 4.5 20l.8-3A7.5 7.5 0 1 1 19.5 13c0 4-3.7 7-8.2 7-1.6 0-3.1-.4-4.3-1.1" /><path d="M9 8.5h5M9 12h3.5" /></svg>
-              </span>
-              <h3>从这份笔记开始提问</h3>
-              <p>回答会先列出笔记依据，再给出解释与可直接复习的英文表达。</p>
+              <h3>开始提问</h3>
             </div>
           </div>
 
           <form class="assistant-composer" id="assistant-form">
-            <div class="assistant-composer__settings">
-              <label class="assistant-setting" for="assistant-reply-length">
-                <span>回答长度</span>
-                <select id="assistant-reply-length" aria-label="回答长度">
-                  <option value="">跟随 App 设置</option>
-                  <option value="512">简洁 · 512</option>
-                  <option value="1024">标准 · 1,024</option>
-                  <option value="1536">更长 · 1,536</option>
-                  <option value="2048">深入 · 2,048</option>
+            <div class="assistant-composer__toolbar">
+              <label class="assistant-quick-control assistant-quick-control--backend" for="assistant-backend">
+                <span>模型</span>
+                <select id="assistant-backend" aria-label="选择回答模型">
+                  <option value="gemini_flash">Gemini 3.5 Flash</option>
+                  <option value="deepseek_v4_flash">DeepSeek V4 Flash</option>
+                  <option value="local_qwen_4b">本地 Qwen 4B</option>
                 </select>
               </label>
-              <label class="assistant-setting" for="assistant-reasoning-mode">
-                <span>回答模式</span>
-                <select id="assistant-reasoning-mode" aria-label="回答模式">
-                  <option value="">跟随 App · 快速优先</option>
-                  <option value="non_thinking">快速回答</option>
-                  <option value="thinking">深入推理</option>
-                </select>
-              </label>
-              <p class="assistant-context-meta" id="assistant-context-meta" aria-live="polite">
-                本轮上下文读取中…
-              </p>
+              <details class="assistant-advanced" id="assistant-advanced-settings">
+                <summary>选项</summary>
+                <div class="assistant-advanced__panel">
+                  <label class="assistant-setting" for="assistant-reply-length">
+                    <span>回答长度</span>
+                    <select id="assistant-reply-length" aria-label="回答长度">
+                      <option value="">跟随 App 设置</option>
+                      <option value="512">简洁 · 512</option>
+                      <option value="1024">标准 · 1,024</option>
+                      <option value="1536">更长 · 1,536</option>
+                      <option value="2048">深入 · 2,048</option>
+                    </select>
+                  </label>
+                  <label class="assistant-setting" id="assistant-reasoning-setting" for="assistant-reasoning-mode">
+                    <span>回答模式</span>
+                    <select id="assistant-reasoning-mode" aria-label="回答模式">
+                      <option value="">跟随 App · 快速优先</option>
+                      <option value="non_thinking">快速回答</option>
+                      <option value="thinking">深入推理</option>
+                    </select>
+                  </label>
+                  <p class="assistant-context-meta" id="assistant-context-meta" aria-live="polite">
+                    本轮上下文读取中…
+                  </p>
+                </div>
+              </details>
             </div>
             <div class="assistant-selection-reference" id="assistant-selection-reference" hidden>
               <div class="assistant-selection-reference__copy">
@@ -305,10 +404,10 @@
               id="assistant-input"
               rows="2"
               maxlength="800"
-              placeholder="询问当前章节…"
+              placeholder="问点什么？"
             ></textarea>
             <div class="assistant-composer__actions">
-              <span class="assistant-model-label" id="assistant-model-label">
+              <span class="assistant-model-label" id="assistant-model-label" hidden>
                 <span aria-hidden="true"></span>
                 <span id="assistant-model-label-text">正在检查本地模型…</span>
               </span>
@@ -346,6 +445,6 @@
 
     <script src="vendor/marked.umd.js"></script>
     <script src="vendor/katex/katex.min.js"></script>
-    <script src="app.js"></script>
+  <script src="app.js?v=20260915-reading-settings-1"></script>
   </body>
 </html>

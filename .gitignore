@@ -1,13 +1,13 @@
-# This repository intentionally publishes only the reusable web framework.
-# Keep the allowlist small so private course material and App artifacts cannot
-# enter the index accidentally.
+# 本仓库只分发不含内容的阅读器框架。
+# 采用「先全部忽略、再逐项放行」，这样本地新增的笔记、清单或索引都进不了索引区。
 *
 !.gitignore
-!README.md
 !LICENSE
+!README.md
 !index.html
 !app.js
 !styles.css
+!favicon.png
 !USydLogoBlack.svg.png
 !vendor/
 !vendor/**

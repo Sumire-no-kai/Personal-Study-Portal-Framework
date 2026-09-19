@@ -45,10 +45,10 @@ credentials**. It starts in a safe empty-library state; add a generated
 Clone the framework and serve it over HTTP rather than opening `index.html`
 directly:
 
-```powershell
-git clone git@github.com:Sumire-no-kai/USYD-Personal-Study-Portal-Framework.git
-Set-Location USYD-Personal-Study-Portal-Framework
-python -m http.server 4173
+```zsh
+git clone git@github.com:Sumire-no-kai/Personal-Study-Portal-Framework.git
+cd Personal-Study-Portal-Framework
+python3 -m http.server 4173
 ```
 
 Then open `http://localhost:4173/`. Without a private manifest, the portal
@@ -74,7 +74,7 @@ Content is file-based so that you control where it is stored:
 Both `notes/` and `notes-manifest.js` are ignored by Git. Confirm that before
 you commit anything:
 
-```powershell
+```zsh
 git check-ignore -v notes/demo101/week-1.md notes-manifest.js
 ```
 
