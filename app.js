@@ -14,8 +14,12 @@ let portalManifestLoadComplete = portalManifestAvailable;
 let portalReleaseEventsStarted = false;
 const PORTAL_UPDATE_CHECK_INTERVAL = 15_000;
 const PORTAL_RELEASE_SESSION_KEY = "study-portal-release-id";
+const ASSISTANT_UI_ENABLED = false;
 const ASSISTANT_SELECTION_MAXIMUM_CHARACTERS = 1200;
 const ASSISTANT_DEFAULT_PLACEHOLDER = "询问当前章节…";
+const WELCOME_STORE_KEY = "study-portal-welcome:onboarding-immersive-v2";
+const WELCOME_SUPPORT_MINIMUM_VIEW_MS = 5000;
+const FEEDBACK_MAXIMUM_CHARACTERS = 4000;
 let portalUpdateCheckInFlight = false;
 let portalReleaseRefreshInFlight = false;
 let observedPortalReleaseId = "";
@@ -388,6 +392,32 @@ const readerControlDock = document.querySelector("#reader-control-dock");
 const immersionToggle = document.querySelector("#immersion-toggle");
 const backToTop = document.querySelector("#back-to-top");
 const readingThemeOptions = [...document.querySelectorAll("[data-reading-theme]")];
+const supportLink = document.querySelector("#support-link");
+const settingsTrigger = document.querySelector("#settings-trigger");
+const settingsDialog = document.querySelector("#settings-dialog");
+const settingsClose = document.querySelector("#settings-close");
+const settingsAccountStatus = document.querySelector("#settings-account-status");
+const settingsAccountEmail = document.querySelector("#settings-account-email");
+const settingsFeedback = document.querySelector("#settings-feedback");
+const settingsWelcome = document.querySelector("#settings-welcome");
+const feedbackDialog = document.querySelector("#feedback-dialog");
+const feedbackForm = document.querySelector("#feedback-form");
+const feedbackClose = document.querySelector("#feedback-close");
+const feedbackCancel = document.querySelector("#feedback-cancel");
+const feedbackIdentity = document.querySelector("#feedback-identity");
+const feedbackKind = document.querySelector("#feedback-kind");
+const feedbackMessage = document.querySelector("#feedback-message");
+const feedbackStatus = document.querySelector("#feedback-status");
+const feedbackSubmit = document.querySelector("#feedback-submit");
+const welcomeDialog = document.querySelector("#welcome-dialog");
+const welcomeStage = document.querySelector("#welcome-stage");
+const welcomeSteps = [...document.querySelectorAll("[data-welcome-step]")];
+const welcomeProgress = [...document.querySelectorAll(".welcome-dialog__progress span")];
+const welcomeSupportLink = document.querySelector("#welcome-support-link");
+const welcomeSupportAmount = document.querySelector("#welcome-support-amount");
+const welcomeSupportWait = document.querySelector("#welcome-support-wait");
+const welcomeBack = document.querySelector("#welcome-back");
+const welcomeNext = document.querySelector("#welcome-next");
 const selectionAskAi = document.querySelector("#selection-ask-ai");
 const assistantStatus = document.querySelector("#assistant-status");
 const assistantStatusLabel = document.querySelector("#assistant-status-label");
@@ -455,6 +485,17 @@ let selectionPopoverCandidate = null;
 let selectionPopoverFrame = 0;
 let lastUtilityTrigger = tocToggle;
 let compactNavigationBeforeResize = isCompactNavigation();
+let welcomeStepIndex = 0;
+let welcomeTransitioning = false;
+let welcomeSupportWaitTimer = 0;
+let welcomeSupportWaitUntil = 0;
+const viewerSession = {
+  loaded: false,
+  loading: null,
+  email: "",
+  feedback: false,
+  error: "",
+};
 
 /* ---------------- 阅读位置记忆 ---------------- */
 
@@ -766,6 +807,342 @@ function applyReadingTheme(theme, options = {}) {
   if (options.persist !== false) rememberReadingTheme(nextTheme);
 }
 
+function getSupportSettings() {
+  const rawUrl = typeof portalData.support?.url === "string" ? portalData.support.url.trim() : "";
+  let url;
+  try {
+    url = new URL(rawUrl);
+  } catch (error) {
+    return null;
+  }
+  const hostname = url.hostname.toLocaleLowerCase().replace(/^www\./, "");
+  if (url.protocol !== "https:" || hostname !== "buymeacoffee.com" || url.username || url.password) {
+    return null;
+  }
+  const configuredAmount = Number(portalData.support?.suggestedAmountAud);
+  const suggestedAmountAud = Number.isFinite(configuredAmount) && configuredAmount > 0
+    ? Math.min(100, Math.round(configuredAmount))
+    : 5;
+  return { url: url.href, suggestedAmountAud };
+}
+
+function updateSupportPresentation() {
+  const support = getSupportSettings();
+  [supportLink, welcomeSupportLink].forEach((link) => {
+    link.hidden = !support;
+    if (support) link.href = support.url;
+    else link.removeAttribute("href");
+  });
+  welcomeSupportAmount.textContent = `A$${support?.suggestedAmountAud || 5}`;
+}
+
+function setFeedbackStatus(message = "", stateName = "") {
+  feedbackStatus.textContent = message;
+  if (stateName) feedbackStatus.dataset.state = stateName;
+  else delete feedbackStatus.dataset.state;
+}
+
+function updateViewerSessionPresentation() {
+  if (viewerSession.email) {
+    settingsAccountStatus.textContent = "已通过 Access 验证";
+    settingsAccountStatus.dataset.state = "verified";
+    settingsAccountEmail.textContent = viewerSession.email;
+    feedbackIdentity.textContent = `将以 ${viewerSession.email} 的身份提交；邮箱由服务器验签确认。`;
+  } else if (viewerSession.loading) {
+    settingsAccountStatus.textContent = "正在读取身份…";
+    delete settingsAccountStatus.dataset.state;
+    settingsAccountEmail.textContent = "—";
+    feedbackIdentity.textContent = "正在确认当前用户…";
+  } else {
+    settingsAccountStatus.textContent = viewerSession.error || "本地访问";
+    delete settingsAccountStatus.dataset.state;
+    settingsAccountEmail.textContent = "未提供登录邮箱";
+    feedbackIdentity.textContent = "此访问方式未提供经验证的邮箱，无法向手机服务器提交反馈。";
+  }
+  settingsFeedback.disabled = !viewerSession.feedback;
+}
+
+async function loadViewerSession(options = {}) {
+  if (viewerSession.loading) return viewerSession.loading;
+  if (viewerSession.loaded && !options.force) return viewerSession;
+
+  viewerSession.error = "";
+  viewerSession.loading = (async () => {
+    try {
+      const response = await fetch("/api/session", {
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      const contentType = response.headers.get("content-type") || "";
+      if (!response.ok || !contentType.includes("application/json")) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      const email = typeof payload.email === "string" ? payload.email.trim() : "";
+      if (!payload.authenticated || !email || email.length > 320 || !email.includes("@")) {
+        throw new Error("invalid session response");
+      }
+      viewerSession.loaded = true;
+      viewerSession.email = email;
+      viewerSession.feedback = payload.capabilities?.feedback === true;
+      viewerSession.error = "";
+    } catch (error) {
+      viewerSession.loaded = false;
+      viewerSession.email = "";
+      viewerSession.feedback = false;
+      viewerSession.error = "未连接共享服务器";
+    }
+    return viewerSession;
+  })();
+  updateViewerSessionPresentation();
+  try {
+    return await viewerSession.loading;
+  } finally {
+    viewerSession.loading = null;
+    updateViewerSessionPresentation();
+  }
+}
+
+function closeDialog(dialog) {
+  if (dialog?.open) dialog.close();
+}
+
+function openSettingsDialog() {
+  if (!settingsDialog.open) settingsDialog.showModal();
+  void loadViewerSession();
+}
+
+async function openFeedbackDialog() {
+  closeDialog(settingsDialog);
+  closeDialog(welcomeDialog);
+  feedbackForm.reset();
+  feedbackSubmit.disabled = false;
+  feedbackSubmit.textContent = "提交反馈";
+  setFeedbackStatus();
+  if (!feedbackDialog.open) feedbackDialog.showModal();
+
+  const session = await loadViewerSession();
+  if (!feedbackDialog.open) return;
+  if (!session.feedback) {
+    setFeedbackStatus("请通过受保护的共享网址访问后再提交反馈。", "error");
+    feedbackSubmit.disabled = true;
+    return;
+  }
+  feedbackMessage.focus();
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+  const message = feedbackMessage.value.replace(/\r\n?/g, "\n").trim();
+  if (!message) {
+    feedbackMessage.setCustomValidity("请填写反馈内容");
+    feedbackMessage.reportValidity();
+    feedbackMessage.setCustomValidity("");
+    return;
+  }
+  if ([...message].length > FEEDBACK_MAXIMUM_CHARACTERS) {
+    setFeedbackStatus(`反馈内容不能超过 ${FEEDBACK_MAXIMUM_CHARACTERS} 个字符。`, "error");
+    return;
+  }
+
+  feedbackSubmit.disabled = true;
+  feedbackSubmit.textContent = "正在提交…";
+  setFeedbackStatus("正在安全提交到手机服务器…");
+  try {
+    const response = await fetch("/api/feedback", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        kind: feedbackKind.value,
+        message,
+        route: window.location.hash,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || `HTTP ${response.status}`);
+      error.status = response.status;
+      error.retryAfter = response.headers.get("retry-after");
+      throw error;
+    }
+    feedbackMessage.value = "";
+    feedbackSubmit.textContent = "已提交";
+    setFeedbackStatus("反馈已保存到手机服务器，感谢你的建议。", "success");
+  } catch (error) {
+    feedbackSubmit.disabled = false;
+    feedbackSubmit.textContent = "重新提交";
+    if (error.status === 429) {
+      setFeedbackStatus(`提交稍快，请等待约 ${error.retryAfter || 20} 秒后再试。`, "error");
+    } else if (error.status === 401) {
+      setFeedbackStatus("登录已失效，请刷新页面并重新完成邮箱验证。", "error");
+    } else {
+      setFeedbackStatus("暂时无法保存反馈，请稍后重试。", "error");
+    }
+  }
+}
+
+function hasCompletedWelcome() {
+  try {
+    return localStorage.getItem(WELCOME_STORE_KEY) === "complete";
+  } catch (error) {
+    return false;
+  }
+}
+
+function rememberWelcomeComplete() {
+  try {
+    localStorage.setItem(WELCOME_STORE_KEY, "complete");
+  } catch (error) {
+    /* Private browsing can deny local storage; the welcome flow remains dismissible for this page. */
+  }
+}
+
+function isWelcomeSupportStep(index = welcomeStepIndex) {
+  return index === welcomeSteps.length - 1;
+}
+
+function welcomeSupportWaitSeconds() {
+  if (!isWelcomeSupportStep() || !welcomeSupportWaitUntil) return 0;
+  return Math.max(0, Math.ceil((welcomeSupportWaitUntil - Date.now()) / 1000));
+}
+
+function clearWelcomeSupportWait() {
+  if (welcomeSupportWaitTimer) window.clearInterval(welcomeSupportWaitTimer);
+  welcomeSupportWaitTimer = 0;
+  welcomeSupportWaitUntil = 0;
+  welcomeSupportWait.hidden = true;
+  welcomeSupportWait.textContent = "";
+}
+
+function updateWelcomeControls() {
+  const heading = welcomeSteps[welcomeStepIndex]?.querySelector("h2");
+  if (heading?.id) welcomeDialog.setAttribute("aria-labelledby", heading.id);
+  welcomeBack.hidden = welcomeStepIndex === 0;
+  const remainingSeconds = welcomeSupportWaitSeconds();
+  const waitingForSupportStep = remainingSeconds > 0;
+  welcomeSupportWait.hidden = !waitingForSupportStep;
+  welcomeSupportWait.textContent = waitingForSupportStep
+    ? `请稍候 ${remainingSeconds} 秒后继续。`
+    : "";
+  welcomeNext.textContent = waitingForSupportStep
+    ? `请稍候 ${remainingSeconds} 秒`
+    : (isWelcomeSupportStep() ? "开始阅读" : "下一步");
+  welcomeBack.disabled = welcomeTransitioning;
+  welcomeNext.disabled = welcomeTransitioning || waitingForSupportStep;
+}
+
+function startWelcomeSupportWait() {
+  clearWelcomeSupportWait();
+  if (!isWelcomeSupportStep()) return;
+
+  welcomeSupportWaitUntil = Date.now() + WELCOME_SUPPORT_MINIMUM_VIEW_MS;
+  const refreshWelcomeSupportWait = () => {
+    updateWelcomeControls();
+    if (Date.now() < welcomeSupportWaitUntil) return;
+    window.clearInterval(welcomeSupportWaitTimer);
+    welcomeSupportWaitTimer = 0;
+    welcomeSupportWaitUntil = 0;
+    updateWelcomeControls();
+  };
+
+  refreshWelcomeSupportWait();
+  welcomeSupportWaitTimer = window.setInterval(refreshWelcomeSupportWait, 200);
+}
+
+async function setWelcomeStep(index, options = {}) {
+  const nextIndex = Math.max(0, Math.min(welcomeSteps.length - 1, index));
+  if (welcomeTransitioning || nextIndex === welcomeStepIndex) {
+    welcomeSteps.forEach((step, stepIndex) => {
+      step.hidden = stepIndex !== welcomeStepIndex;
+    });
+    updateWelcomeControls();
+    return;
+  }
+
+  const previousIndex = welcomeStepIndex;
+  const previousStep = welcomeSteps[previousIndex];
+  const nextStep = welcomeSteps[nextIndex];
+  if (isWelcomeSupportStep(previousIndex)) clearWelcomeSupportWait();
+  const shouldAnimate = options.animate !== false
+    && welcomeDialog.open
+    && typeof nextStep?.animate === "function"
+    && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  welcomeStepIndex = nextIndex;
+  welcomeProgress.forEach((marker, markerIndex) => {
+    marker.classList.toggle("is-active", markerIndex === nextIndex);
+    marker.classList.toggle("is-complete", markerIndex < nextIndex);
+  });
+  updateWelcomeControls();
+
+  if (!shouldAnimate) {
+    welcomeSteps.forEach((step, stepIndex) => {
+      step.hidden = stepIndex !== nextIndex;
+    });
+    if (isWelcomeSupportStep(nextIndex)) startWelcomeSupportWait();
+    else updateWelcomeControls();
+    return;
+  }
+
+  welcomeTransitioning = true;
+  welcomeDialog.classList.add("is-transitioning");
+  updateWelcomeControls();
+  nextStep.hidden = false;
+  const direction = nextIndex > previousIndex ? 1 : -1;
+  const offset = 22 * direction;
+  const timing = { duration: 280, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "both" };
+
+  const outgoing = previousStep.animate([
+    { opacity: 1, transform: "translateY(0) scale(1)" },
+    { opacity: 0, transform: `translateY(${-offset}px) scale(0.985)` },
+  ], timing);
+  const incoming = nextStep.animate([
+    { opacity: 0, transform: `translateY(${offset}px) scale(0.985)` },
+    { opacity: 1, transform: "translateY(0) scale(1)" },
+  ], timing);
+
+  await Promise.allSettled([outgoing.finished, incoming.finished]);
+  previousStep.hidden = true;
+  previousStep.getAnimations().forEach((animation) => animation.cancel());
+  nextStep.getAnimations().forEach((animation) => animation.cancel());
+  welcomeDialog.classList.remove("is-transitioning");
+  welcomeTransitioning = false;
+  if (isWelcomeSupportStep(nextIndex)) startWelcomeSupportWait();
+  else updateWelcomeControls();
+}
+
+function openWelcomeDialog(options = {}) {
+  if (!options.force && hasCompletedWelcome()) return;
+  closeDialog(settingsDialog);
+  clearWelcomeSupportWait();
+  welcomeStepIndex = 0;
+  welcomeSteps.forEach((step, stepIndex) => {
+    step.hidden = stepIndex !== 0;
+  });
+  welcomeProgress.forEach((marker, markerIndex) => {
+    marker.classList.toggle("is-active", markerIndex === 0);
+    marker.classList.remove("is-complete");
+  });
+  updateWelcomeControls();
+  if (!welcomeDialog.open) welcomeDialog.showModal();
+}
+
+function completeWelcome() {
+  clearWelcomeSupportWait();
+  rememberWelcomeComplete();
+  closeDialog(welcomeDialog);
+}
+
+function maybeShowWelcome() {
+  if (hasCompletedWelcome() || welcomeDialog.open) return;
+  requestAnimationFrame(() => openWelcomeDialog());
+}
+
 function updateImmersionClock() {
   const now = new Date();
   const dateText = `${IMMERSION_CLOCK_DATE_FORMATTER.format(now)} · ${IMMERSION_CLOCK_WEEKDAY_FORMATTER.format(now)}`;
@@ -967,6 +1344,7 @@ async function loadPortalManifest() {
       if (state.view === "overview") renderOverview({ preserveUrl: true });
       else renderLibraryHome({ preserveUrl: true });
     }
+    maybeShowWelcome();
   }
 }
 
@@ -979,8 +1357,10 @@ function applyPortalUpdate(latestPortalData) {
   activeUnits = portalData.units.filter((unit) => unit.weeks.length);
   renderPortalIdentity();
 
+  const requestedNoteId = getNoteIdFromHash();
+  if (requestedNoteId) state.activeNoteId = requestedNoteId;
   const activeNote = flatNotes.find((note) => note.id === state.activeNoteId);
-  if (state.view === "note" && activeNote) {
+  if ((state.view === "note" || requestedNoteId) && activeNote) {
     renderNavigation();
     renderNote(activeNote, { restoreScroll: true });
     return;
@@ -1095,6 +1475,7 @@ function renderPortalIdentity() {
   sidebarTerm.textContent = portalData.label;
   sidebarSummary.textContent = `${activeUnits.length} active ${activeUnits.length === 1 ? "unit" : "units"} · ${flatNotes.length} ${flatNotes.length === 1 ? "note" : "notes"}`;
   searchScopeTerm.textContent = portalData.label;
+  updateSupportPresentation();
 }
 
 function renderCurrentNoteIndicator(note, unit) {
@@ -1166,7 +1547,7 @@ function setViewMode(view, note = null) {
   navScrim.hidden = !isNote;
   tocPanel.hidden = !isNote;
   tocToggle.hidden = !isNote;
-  assistantToggle.hidden = !isNote;
+  assistantToggle.hidden = !isNote || !ASSISTANT_UI_ENABLED;
   tocScrim.hidden = !isNote;
   readingProgress.hidden = !isNote;
   updateImmersionControls();
@@ -1416,6 +1797,7 @@ async function renderNote(note, options = {}) {
 
     const article = viewRoot.querySelector("#markdown-article");
     article.innerHTML = renderMarkdownWithMath(markdown);
+    resolveArticleAssetUrls(article, note.path);
     enhanceMarkdownArticle(article);
     printTrigger.disabled = false;
     buildTableOfContents();
@@ -1458,6 +1840,24 @@ function restorePrintState() {
   });
 }
 
+function recordPortalActivity(action, note = getActiveNote()) {
+  const payload = JSON.stringify({
+    action,
+    noteId: note?.id || "",
+    notePath: note?.path || "",
+    route: window.location.hash,
+  });
+  const blob = new Blob([payload], { type: "application/json" });
+  if (typeof navigator.sendBeacon === "function" && navigator.sendBeacon("/api/activity", blob)) return;
+  void fetch("/api/activity", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: payload,
+    keepalive: true,
+  }).catch(() => {});
+}
+
 function printCurrentNote() {
   const note = getActiveNote();
   const unit = note ? getUnitForNote(note.id) : null;
@@ -1475,7 +1875,62 @@ function printCurrentNote() {
   };
   document.title = `${unit.code} · ${formatWeekLabel(note)} · ${note.title} — Study Portal`;
   document.body.classList.add("is-printing");
+  recordPortalActivity("print", note);
   window.print();
+}
+
+/**
+ * 把正文里的相对资源地址按**笔记自身的 URL** 解析，而不是按页面地址。
+ *
+ * 渲染出来的 HTML 是插进根页面的，浏览器于是拿页面地址当基准：写在
+ * `notes/<unit>/week-N.md` 里的 `assets/week-N/x.png` 会被请求成 `/assets/week-N/x.png`，
+ * 但文件实际在 `/notes/<unit>/assets/week-N/x.png` —— 同步器
+ * （content/sync-notes.py）就是把图片复制到笔记旁边的 assets/ 下的，
+ * 所以这种相对写法必须成立，否则插图静默加载失败。
+ *
+ * 只改相对路径的媒体地址。带协议的、根路径的、#锚点一律原样保留；`<a href>` 也不动，
+ * 改了会让「链到另一篇笔记」变成直接跳去原始 .md，而目录锚点也会跟着失效。
+ */
+function resolveArticleAssetUrls(article, notePath) {
+  let noteUrl;
+  try {
+    noteUrl = new URL(notePath, window.location.href);
+  } catch (error) {
+    return;
+  }
+
+  const isRelative = (value) =>
+    Boolean(value)
+    && !value.startsWith("#")
+    && !value.startsWith("/")
+    && !/^[a-z][a-z0-9+.-]*:/i.test(value);
+
+  const resolve = (value) => {
+    try {
+      return new URL(value, noteUrl).href;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  article.querySelectorAll("img[src], video[src], audio[src], source[src], embed[src]")
+    .forEach((element) => {
+      const value = element.getAttribute("src").trim();
+      if (!isRelative(value)) return;
+      const resolved = resolve(value);
+      if (resolved) element.setAttribute("src", resolved);
+    });
+
+  article.querySelectorAll("img[srcset], source[srcset]").forEach((element) => {
+    const rewritten = element.getAttribute("srcset").split(",").map((candidate) => {
+      const parts = candidate.trim().split(/\s+/);
+      if (!parts[0] || !isRelative(parts[0])) return candidate.trim();
+      const resolved = resolve(parts[0]);
+      if (!resolved) return candidate.trim();
+      return [resolved, ...parts.slice(1)].join(" ");
+    });
+    element.setAttribute("srcset", rewritten.join(", "));
+  });
 }
 
 function enhanceMarkdownArticle(article) {
@@ -1633,6 +2088,10 @@ function updateSelectionAskAi() {
 }
 
 function scheduleSelectionAskAi() {
+  if (!ASSISTANT_UI_ENABLED) {
+    hideSelectionAskAi();
+    return;
+  }
   window.cancelAnimationFrame(selectionPopoverFrame);
   selectionPopoverFrame = window.requestAnimationFrame(updateSelectionAskAi);
 }
@@ -2144,7 +2603,8 @@ function openMobileNavigation() {
 }
 
 function setUtilityTab(tab, options = {}) {
-  const nextTab = ["toc", "preferences", "assistant"].includes(tab) ? tab : "toc";
+  const availableTabs = ASSISTANT_UI_ENABLED ? ["toc", "assistant"] : ["toc"];
+  const nextTab = availableTabs.includes(tab) ? tab : "toc";
   if (!isCompactNavigation() && isImmersionActive() && state.immersiveTocCollapsed) {
     setImmersiveTocCollapsed(false);
   }
@@ -2195,6 +2655,7 @@ function openTocNavigation() {
 }
 
 function openAssistantPanel() {
+  if (!ASSISTANT_UI_ENABLED) return;
   openUtilityPanel("assistant", assistantToggle);
 }
 
@@ -2584,7 +3045,7 @@ function updateAssistantModelLabel(payload, statusState) {
 }
 
 async function refreshAssistantStatus() {
-  if (state.view !== "note") return;
+  if (!ASSISTANT_UI_ENABLED || state.view !== "note") return;
   try {
     const response = await fetch(`/api/assistant/status?backend=${encodeURIComponent(state.assistantBackend)}`, { cache: "no-store" });
     const payload = await response.json().catch(() => ({}));
@@ -3552,7 +4013,48 @@ searchTrigger.addEventListener("click", openSearch);
 printTrigger.addEventListener("click", printCurrentNote);
 searchClose.addEventListener("click", () => searchDialog.close());
 searchInput.addEventListener("input", (event) => scheduleFullTextSearch(event.target.value));
+settingsTrigger.addEventListener("click", openSettingsDialog);
+settingsClose.addEventListener("click", () => closeDialog(settingsDialog));
+settingsFeedback.addEventListener("click", () => void openFeedbackDialog());
+settingsWelcome.addEventListener("click", () => openWelcomeDialog({ force: true }));
+feedbackClose.addEventListener("click", () => closeDialog(feedbackDialog));
+feedbackCancel.addEventListener("click", () => closeDialog(feedbackDialog));
+feedbackForm.addEventListener("submit", submitFeedback);
+welcomeDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+});
+welcomeDialog.addEventListener("close", clearWelcomeSupportWait);
+welcomeBack.addEventListener("click", () => void setWelcomeStep(welcomeStepIndex - 1));
+welcomeNext.addEventListener("click", () => {
+  if (welcomeStepIndex < welcomeSteps.length - 1) {
+    void setWelcomeStep(welcomeStepIndex + 1);
+    return;
+  }
+  completeWelcome();
+});
+document.addEventListener("click", (event) => {
+  const downloadLink = event.target.closest?.("a[download]");
+  if (!downloadLink) return;
+  try {
+    if (new URL(downloadLink.href, window.location.href).origin === window.location.origin) {
+      recordPortalActivity("download");
+    }
+  } catch (error) {
+    /* Ignore malformed third-party links; navigation itself remains unchanged. */
+  }
+});
 document.addEventListener("selectionchange", scheduleSelectionAskAi);
+
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (event.key !== "Escape" || !welcomeDialog.open) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },
+  true,
+);
 
 document.addEventListener("keydown", (event) => {
   sidebarInteractionMode = "keyboard";
@@ -3635,10 +4137,16 @@ renderNavigation();
 applyReadingTheme(state.readingTheme, { persist: false });
 setUtilityTab("toc");
 applyAssistantBackendPresentation();
+updateViewerSessionPresentation();
 if (!window.location.hash || window.location.hash === "#home") renderLibraryHome({ preserveUrl: true });
 else if (window.location.hash === "#overview") renderOverview({ preserveUrl: true });
 else if (getActiveNote()) renderNote(getActiveNote(), { restoreScroll: true });
 else renderLibraryHome({ preserveUrl: true });
 updateNavigationToggle();
-if (portalManifestAvailable) watchForPublishedPortalRelease();
-else void loadPortalManifest();
+void loadViewerSession();
+if (portalManifestAvailable) {
+  watchForPublishedPortalRelease();
+  maybeShowWelcome();
+} else {
+  void loadPortalManifest();
+}
