@@ -92,8 +92,14 @@ jobs:
           installers=(./*-setup.exe)
           test -f "${installers[0]}"
           test "${#installers[@]}" -eq 1
-          sha256sum "${installers[0]}" > SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" "${installers[0]}" SHA256SUMS.txt \
+          installer="${installers[0]}"
+          release_installer="${installer// /.}"
+          if [[ "$installer" != "$release_installer" ]]; then
+            mv "$installer" "$release_installer"
+          fi
+          sha256sum "$release_installer" > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" "$release_installer" SHA256SUMS.txt \
             --verify-tag --prerelease --latest=false \
             --title "Note Portal $GITHUB_REF_NAME (Windows alpha)" \
             --notes "Windows 预发布版：下载 *-setup.exe 安装；GitHub 自动提供对应源码。首次启动请阅读并同意使用提示，再选择本机 Markdown 文件夹。服务仅监听本机，不内置 AI，也不会上传笔记。安装包未签名，可能触发 Windows SmartScreen 提示；尚未完成 Windows 实机与干净系统验证，请仅在你信任的电脑上试用。此版本不适合公网部署。" \
