@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The compact Note Portal controller uses only its own commands.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

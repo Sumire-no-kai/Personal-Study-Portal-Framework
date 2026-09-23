@@ -25,8 +25,9 @@ reading-position persistence, and an optional assistant interface that can be
 connected to a separate backend.
 
 This repository intentionally contains **no course material, personal notes,
-model files, vector indexes, device configuration, release packages, or
-credentials**. It starts in a safe empty-library state; add a generated
+model files, vector indexes, device configuration, or credentials**. Installer
+binaries are distributed separately through GitHub Releases, not committed to
+the source tree. The static reader starts in a safe empty-library state; add a generated
 `notes-manifest.js` and Markdown files only in your own private deployment.
 
 ## Features
@@ -39,6 +40,29 @@ credentials**. It starts in a safe empty-library state; add a generated
   persistence.
 - Optional assistant panel. The UI degrades safely when no assistant or search
   backend is configured.
+
+## Windows desktop alpha
+
+The [Windows prereleases](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)
+contain an unsigned `*-setup.exe` installer and a `SHA256SUMS.txt` checksum.
+Use the installer, not GitHub Packages. GitHub automatically supplies source
+archives for each release. This is an alpha: a Windows clean-machine install,
+runtime behavior, accessibility, resource budgets, and signing have not yet
+been verified by the maintainers. macOS packaging is planned but not released.
+
+The small desktop window selects a local Markdown folder, shows the recognised
+structure and diagnostics, and opens the reader in your normal browser. The
+local server watches for file changes and requires a per-launch browser session
+to read the library. The first launch requires acceptance of the responsible-use
+notice. The desktop alpha has no built-in AI service and does not upload notes.
+See the [desktop guide](servers/desktop-windows/README.md) and
+[beginner walkthrough](servers/desktop-windows/docs/GETTING_STARTED.zh-CN.md).
+
+For contributors, the public repository uses one canonical reader at its root.
+The desktop binary embeds only its explicitly listed public reader assets; it
+does not bundle the selected library. Windows CI tests and builds the NSIS
+installer on pull requests and relevant pushes. A `v*-alpha.*` tag at the
+current `master` commit publishes a prerelease after those checks pass.
 
 ## Deploy the framework
 

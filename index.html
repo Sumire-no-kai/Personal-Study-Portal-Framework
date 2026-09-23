@@ -8,18 +8,7 @@
       content="A local-first, content-agnostic Markdown study portal."
     />
     <title>Study Portal</title>
-    <script>
-      (() => {
-        try {
-          const savedTheme = localStorage.getItem("study-portal-reading-theme");
-          if (["light", "warm", "dark"].includes(savedTheme)) {
-            document.documentElement.dataset.readingTheme = savedTheme;
-          }
-        } catch (error) {
-          // A private browser may not expose local storage; the default light theme still works.
-        }
-      })();
-    </script>
+    <script src="theme-init.js"></script>
     <link rel="icon" type="image/png" sizes="256x256" href="favicon.png?v=20260903-usyd-shield-1" />
     <link rel="apple-touch-icon" href="favicon.png?v=20260903-usyd-shield-1" />
     <link rel="stylesheet" href="vendor/katex/katex.min.css" />
