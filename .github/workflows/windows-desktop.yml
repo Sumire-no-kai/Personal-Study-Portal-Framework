@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - master
-      - "feat/windows-desktop-*"
     tags:
       - "v*-alpha.*"
     paths:

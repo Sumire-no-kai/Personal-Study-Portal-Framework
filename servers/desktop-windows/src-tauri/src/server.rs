@@ -1,6 +1,5 @@
 use std::{
     convert::Infallible,
-    fs,
     net::SocketAddr,
     path::PathBuf,
     sync::{
@@ -283,8 +282,8 @@ async fn asset(State(state): State<WebState>, Path(path): Path<String>) -> Respo
     let Some(asset) = library::resolve_asset(&state.root, &path) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(bytes) = fs::read(&asset) else {
-        return StatusCode::NOT_FOUND.into_response();
+    let Ok(bytes) = library::read_stable_bytes(&asset) else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
     if blake3::hash(&bytes).to_hex().as_str() != expected_hash {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
@@ -537,7 +536,10 @@ pub async fn start(root: PathBuf, profile: Profile) -> Result<(Service, WebHandl
 mod tests {
     use super::*;
     use notify::event::{AccessKind, DataChange};
-    use std::io::{Read, Write};
+    use std::{
+        fs,
+        io::{Read, Write},
+    };
 
     fn local_get(port: u16, path: &str, cookie: Option<&str>) -> String {
         let mut connection = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();

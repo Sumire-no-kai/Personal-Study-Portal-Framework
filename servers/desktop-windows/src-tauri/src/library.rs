@@ -164,7 +164,7 @@ fn read_stable(path: &Path) -> Result<String, String> {
         .map_err(|_| "文件不是有效 UTF-8。".into())
 }
 
-fn read_stable_bytes(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_stable_bytes(path: &Path) -> Result<Vec<u8>, String> {
     read_stable_limited(path, MAX_IMAGE_BYTES)
 }
 
@@ -921,6 +921,17 @@ mod tests {
             .unwrap();
         let error = scan(root.path(), Profile::General, 1).err().unwrap();
         assert!(error.contains("8 MiB"));
+    }
+
+    #[test]
+    fn oversized_image_is_rejected_before_loading() {
+        let root = tempfile::tempdir().unwrap();
+        let image = root.path().join("too-large.png");
+        fs::File::create(&image)
+            .unwrap()
+            .set_len(MAX_IMAGE_BYTES + 1)
+            .unwrap();
+        assert!(read_stable_bytes(&image).unwrap_err().contains("32 MiB"));
     }
 
     #[test]
