@@ -30,7 +30,18 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    name: build (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         working-directory: servers/desktop-windows
@@ -46,7 +57,13 @@ jobs:
           components: rustfmt
       - uses: swatinem/rust-cache@v2
         with:
+          key: ${{ matrix.arch }}
           workspaces: servers/desktop-windows/src-tauri
+      - name: Verify native runner and install Rust target
+        run: |
+          $hostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+          if ($hostArch -ne "${{ matrix.arch }}") { throw "Expected ${{ matrix.arch }} runner, found $hostArch" }
+          rustup target add ${{ matrix.target }}
       - name: Install frontend dependencies
         run: npm ci
       - name: Check reader and frontend
@@ -59,11 +76,11 @@ jobs:
           cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
           cargo test --locked --manifest-path src-tauri/Cargo.toml
       - name: Build unsigned NSIS installer
-        run: npx tauri build
+        run: npx tauri build --target ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
-          name: note-portal-windows-installer
-          path: servers/desktop-windows/src-tauri/target/release/bundle/nsis/*-setup.exe
+          name: note-portal-windows-${{ matrix.arch }}-installer
+          path: servers/desktop-windows/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -81,26 +98,33 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"
       - uses: actions/download-artifact@v4
         with:
-          name: note-portal-windows-installer
+          pattern: note-portal-windows-*-installer
           path: release
+          merge-multiple: true
       - name: Publish Windows alpha prerelease
         working-directory: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          shopt -s nullglob
           installers=(./*-setup.exe)
-          test -f "${installers[0]}"
-          test "${#installers[@]}" -eq 1
-          installer="${installers[0]}"
-          release_installer="${installer// /.}"
-          if [[ "$installer" != "$release_installer" ]]; then
-            mv "$installer" "$release_installer"
-          fi
-          sha256sum "$release_installer" > SHA256SUMS.txt
+          test "${#installers[@]}" -eq 2
+          for installer in "${installers[@]}"; do
+            release_installer="${installer// /.}"
+            if [[ "$installer" != "$release_installer" ]]; then
+              test ! -e "$release_installer"
+              mv "$installer" "$release_installer"
+            fi
+          done
+          x64=(./*_x64-setup.exe)
+          arm64=(./*_arm64-setup.exe)
+          test "${#x64[@]}" -eq 1
+          test "${#arm64[@]}" -eq 1
+          sha256sum "${x64[0]}" "${arm64[0]}" > SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" "$release_installer" SHA256SUMS.txt \
+          gh release create "$GITHUB_REF_NAME" "${x64[0]}" "${arm64[0]}" SHA256SUMS.txt \
             --verify-tag --prerelease --latest=false \
             --title "Note Portal $GITHUB_REF_NAME (Windows alpha)" \
-            --notes "Windows 预发布版：下载 *-setup.exe 安装；GitHub 自动提供对应源码。首次启动请阅读并同意使用提示，再选择本机 Markdown 文件夹。服务仅监听本机，不内置 AI，也不会上传笔记。安装包未签名，可能触发 Windows SmartScreen 提示；尚未完成 Windows 实机与干净系统验证，请仅在你信任的电脑上试用。此版本不适合公网部署。" \
+            --notes "Windows 预发布版：根据设备选择 x64 或 ARM64 的 *-setup.exe 安装，GitHub 自动提供对应源码。ARM64 安装器外壳可能使用 x86 模拟，安装后的应用主体为 ARM64。首次启动请阅读并同意使用提示，再选择本机 Markdown 文件夹。服务仅监听本机，不内置 AI，也不会上传笔记。安装包未签名，可能触发 Windows SmartScreen 提示；尚未完成 Windows 实机与干净系统验证，请仅在你信任的电脑上试用。此版本不适合公网部署。" \
             --generate-notes
