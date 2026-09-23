@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A local-first Markdown reader for notes, documents, and logs."
+    />
+    <title>Note Portal</title>
+    <script src="theme-init.js"></script>
+    <link rel="icon" type="image/png" sizes="256x256" href="favicon.png?v=note-portal-1" />
+    <link rel="apple-touch-icon" href="favicon.png?v=note-portal-1" />
+    <link rel="stylesheet" href="vendor/katex/katex.min.css" />
+  <link rel="stylesheet" href="styles.css?v=20260920-welcome-bmc-wait-1" />
+  <link rel="stylesheet" href="reader-brand.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到笔记正文</a>
+
+    <header class="topbar">
+      <div class="topbar__identity">
+        <button
+          class="icon-button mobile-nav-toggle"
+          id="nav-toggle"
+          type="button"
+          aria-label="收起课程导航"
+          aria-controls="sidebar"
+          aria-expanded="true"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M4 5h16v14H4zM9 5v14" />
+          </svg>
+        </button>
+        <button
+          class="brand"
+          id="brand-home"
+          type="button"
+          aria-label="Note Portal 首页"
+        >
+          <span class="brand__product">Note Portal</span>
+        </button>
+      </div>
+
+      <div class="topbar__actions">
+        <label class="semester-picker" id="semester-picker">
+          <span class="sr-only">选择学期</span>
+          <select id="semester-select" aria-label="选择学期"></select>
+        </label>
+        <div
+          class="current-note-indicator"
+          id="current-note-indicator"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          hidden
+        >
+          <span class="current-note-indicator__label" id="current-note-label">当前笔记</span>
+          <span class="current-note-indicator__value">
+            <span id="current-note-unit">Unit</span>
+            <span aria-hidden="true">·</span>
+            <span class="current-note-indicator__week" id="current-note-week">Week</span>
+            <span class="current-note-indicator__week-short" id="current-note-week-short">W</span>
+          </span>
+        </div>
+        <div class="topbar__reading-utility" id="topbar-reading-utility" hidden>
+          <button
+            class="print-trigger"
+            id="print-trigger"
+            type="button"
+            aria-label="打印当前笔记或保存为 A4 PDF"
+            title="打印当前笔记或保存为 A4 PDF"
+            hidden
+            disabled
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M7 8V4.5h10V8M7 16H5.5A1.5 1.5 0 0 1 4 14.5v-5A1.5 1.5 0 0 1 5.5 8h13A1.5 1.5 0 0 1 20 9.5v5a1.5 1.5 0 0 1-1.5 1.5H17" />
+              <path d="M7 13.5h10v6H7zM17.5 11.5h.01" />
+            </svg>
+            <span>打印 / PDF</span>
+          </button>
+          <time class="immersion-clock" id="immersion-clock" aria-hidden="true">
+            <span class="immersion-clock__date" id="immersion-clock-date"></span>
+            <span class="immersion-clock__date immersion-clock__date--compact" id="immersion-clock-date-compact"></span>
+            <span class="immersion-clock__time" id="immersion-clock-time"></span>
+          </time>
+        </div>
+        <a
+          class="topbar-icon-action support-link"
+          id="support-link"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="通过 Buy Me a Coffee 支持 Note Portal"
+          title="Buy Me a Coffee"
+          hidden
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M5 8.5h11v5.8A4.7 4.7 0 0 1 11.3 19H9.7A4.7 4.7 0 0 1 5 14.3V8.5Z" />
+            <path d="M16 10h1.6a2.4 2.4 0 0 1 0 4.8H16M7 5.5h7" />
+          </svg>
+          <span>BMC</span>
+        </a>
+        <button
+          class="topbar-icon-action settings-trigger"
+          id="settings-trigger"
+          type="button"
+          aria-label="打开设置"
+          title="设置"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3.1" />
+            <path d="M19.1 13.7a7.5 7.5 0 0 0 0-3.4l2-1.5-2-3.4-2.4 1a8 8 0 0 0-3-1.7L13.4 2H9.5l-.3 2.7a8 8 0 0 0-3 1.7l-2.4-1-2 3.4 2 1.5a7.5 7.5 0 0 0 0 3.4l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 3 1.7l.3 2.7h3.9l.3-2.7a8 8 0 0 0 3-1.7l2.4 1 2-3.4-2-1.5Z" />
+          </svg>
+          <span>设置</span>
+        </button>
+        <button class="search-trigger" id="search-trigger" type="button" aria-label="搜索笔记">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m16 16 4 4" />
+          </svg>
+          <span>搜索笔记</span>
+          <kbd>/</kbd>
+        </button>
+      </div>
+    </header>
+
+    <div class="reading-progress" id="reading-progress" aria-hidden="true" hidden>
+      <span></span>
+    </div>
+
+    <button
+      class="last-read-marker"
+      id="last-read-marker"
+      type="button"
+      aria-label="跳转到上次阅读位置"
+      title="跳转到上次阅读位置"
+      hidden
+    >
+      <span aria-hidden="true"></span>
+      <span class="last-read-marker__label">上次读到</span>
+    </button>
+
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="课程与周次导航">
+        <div class="sidebar__header">
+          <div>
+            <p class="sidebar__term" id="sidebar-term">Semester study notes</p>
+            <p class="sidebar__summary" id="sidebar-summary">Loading library…</p>
+          </div>
+          <button class="icon-button mobile-only" id="nav-close" type="button" aria-label="关闭课程导航">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <button class="library-link" id="library-link" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M4 5.5h6.5v13H4zM13.5 5.5H20v13h-6.5z" />
+          </svg>
+          <span>Study overview</span>
+        </button>
+
+        <nav id="course-navigation" class="course-navigation" aria-label="课程列表"></nav>
+
+        <div class="sidebar__footer">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Local library</span>
+          <span class="sidebar__footer-separator" aria-hidden="true">·</span>
+          <span>Synced notes</span>
+        </div>
+      </aside>
+
+      <button
+        class="sidebar-edge-toggle"
+        id="sidebar-edge-toggle"
+        type="button"
+        aria-label="收起课程导航"
+        aria-controls="sidebar"
+        aria-expanded="true"
+      >
+        <svg aria-hidden="true" viewBox="0 0 16 24">
+          <path d="m10.5 5-5 7 5 7" />
+        </svg>
+      </button>
+
+      <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="关闭课程导航"></button>
+
+      <button
+        class="toc-toggle"
+        id="toc-toggle"
+        type="button"
+        aria-label="打开本页目录"
+        aria-controls="toc-panel"
+        aria-expanded="false"
+        hidden
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M4 6h2M9 6h11M4 12h2M9 12h11M4 18h2M9 18h11" />
+        </svg>
+        <span>本页目录</span>
+      </button>
+
+      <button
+        class="assistant-toggle"
+        id="assistant-toggle"
+        type="button"
+        aria-label="打开问笔记"
+        aria-controls="toc-panel"
+        aria-expanded="false"
+        hidden
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M7 18.5 4.5 20l.8-3A7.5 7.5 0 1 1 19.5 13c0 4-3.7 7-8.2 7-1.6 0-3.1-.4-4.3-1.1" />
+          <path d="M9 8.5h5M9 12h3.5" />
+        </svg>
+        <span>问笔记</span>
+      </button>
+
+      <button class="toc-scrim" id="toc-scrim" type="button" aria-label="关闭阅读工具" hidden></button>
+
+      <div class="reader-control-dock" id="reader-control-dock" role="group" aria-label="阅读工具" hidden>
+        <button
+          class="immersion-toggle"
+          id="immersion-toggle"
+          type="button"
+          aria-pressed="false"
+          aria-label="开启沉浸阅读"
+          title="开启沉浸阅读"
+          hidden
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" />
+          </svg>
+        </button>
+        <button class="back-to-top" id="back-to-top" type="button" aria-label="回到页首" title="回到页首" hidden>
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m7 11 5-5 5 5M12 6v12" />
+          </svg>
+        </button>
+      </div>
+
+      <button class="selection-ask-ai" id="selection-ask-ai" type="button" aria-label="询问选中的正文" hidden>
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M7 18.5 4.5 20l.8-3A7.5 7.5 0 1 1 19.5 13c0 4-3.7 7-8.2 7-1.6 0-3.1-.4-4.3-1.1" />
+          <path d="M9 8.5h5M9 12h3.5" />
+        </svg>
+        <span>问 AI</span>
+      </button>
+
+      <main class="main" id="main-content" tabindex="-1">
+        <div id="view-root"></div>
+      </main>
+
+      <aside class="toc-panel utility-panel" id="toc-panel" aria-label="阅读工具">
+        <div class="utility-panel__topbar">
+          <div class="utility-tabs" role="tablist" aria-label="阅读工具">
+            <button
+              class="utility-tab"
+              id="toc-tab"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="toc-view"
+            >本页目录</button>
+            <button
+              class="utility-tab"
+              id="preferences-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="preferences-view"
+              hidden
+            >阅读外观</button>
+            <button
+              class="utility-tab"
+              id="assistant-tab"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="assistant-view"
+              hidden
+            >问笔记</button>
+          </div>
+          <button class="icon-button toc-close" id="toc-close" type="button" aria-label="关闭本页目录">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <section class="utility-view toc-view" id="toc-view" role="tabpanel" aria-labelledby="toc-tab">
+          <p class="utility-eyebrow">On this page</p>
+          <nav id="toc-navigation"></nav>
+        </section>
+
+        <section
+          class="utility-view preferences-view"
+          id="preferences-view"
+          role="tabpanel"
+          aria-labelledby="preferences-tab"
+          hidden
+        ></section>
+
+        <section
+          class="utility-view assistant-view"
+          id="assistant-view"
+          role="tabpanel"
+          aria-labelledby="assistant-tab"
+          hidden
+        >
+          <div class="assistant-header">
+            <div>
+              <div class="assistant-title-row">
+                <h2>问笔记</h2>
+                <span class="assistant-status" id="assistant-status" data-state="checking">
+                  <span class="assistant-status__dot" aria-hidden="true"></span>
+                  <span id="assistant-status-label">正在检查本地模型…</span>
+                </span>
+              </div>
+            </div>
+            <button
+              class="assistant-clear"
+              id="assistant-clear"
+              type="button"
+              title="清空当前会话及其上下文；下一轮从全新对话开始"
+              aria-label="清空对话"
+            >清空</button>
+          </div>
+
+          <div class="assistant-recovery" id="assistant-recovery" hidden>
+            <p id="assistant-recovery-message">本地模型暂时不可用，笔记阅读不受影响。</p>
+            <button id="assistant-retry" type="button">重新启动模型</button>
+          </div>
+
+          <p class="assistant-session-notice" id="assistant-session-notice" aria-live="polite" hidden></p>
+
+          <label class="assistant-scope-control" id="assistant-scope-control" for="assistant-scope">
+            <span>范围</span>
+            <select id="assistant-scope" aria-label="检索范围">
+              <option value="section">当前章节</option>
+              <option value="week">当前 Week</option>
+              <option value="unit">当前 Unit</option>
+              <option value="all">全部笔记</option>
+            </select>
+          </label>
+
+          <div class="assistant-messages" id="assistant-messages" aria-live="polite">
+            <div class="assistant-empty" id="assistant-empty">
+              <h3>开始提问</h3>
+            </div>
+          </div>
+
+          <form class="assistant-composer" id="assistant-form">
+            <div class="assistant-composer__toolbar">
+              <label class="assistant-quick-control assistant-quick-control--backend" for="assistant-backend">
+                <span>模型</span>
+                <select id="assistant-backend" aria-label="选择回答模型">
+                  <option value="gemini_flash">Gemini 3.5 Flash</option>
+                  <option value="deepseek_v4_flash">DeepSeek V4 Flash</option>
+                  <option value="local_qwen_4b">本地 Qwen 4B</option>
+                </select>
+              </label>
+              <details class="assistant-advanced" id="assistant-advanced-settings">
+                <summary>选项</summary>
+                <div class="assistant-advanced__panel">
+                  <label class="assistant-setting" for="assistant-reply-length">
+                    <span>回答长度</span>
+                    <select id="assistant-reply-length" aria-label="回答长度">
+                      <option value="">跟随 App 设置</option>
+                      <option value="512">简洁 · 512</option>
+                      <option value="1024">标准 · 1,024</option>
+                      <option value="1536">更长 · 1,536</option>
+                      <option value="2048">深入 · 2,048</option>
+                    </select>
+                  </label>
+                  <label class="assistant-setting" id="assistant-reasoning-setting" for="assistant-reasoning-mode">
+                    <span>回答模式</span>
+                    <select id="assistant-reasoning-mode" aria-label="回答模式">
+                      <option value="">跟随 App · 快速优先</option>
+                      <option value="non_thinking">快速回答</option>
+                      <option value="thinking">深入推理</option>
+                    </select>
+                  </label>
+                  <p class="assistant-context-meta" id="assistant-context-meta" aria-live="polite">
+                    本轮上下文读取中…
+                  </p>
+                </div>
+              </details>
+            </div>
+            <div class="assistant-selection-reference" id="assistant-selection-reference" hidden>
+              <div class="assistant-selection-reference__copy">
+                <span class="assistant-selection-reference__label" id="assistant-selection-label">引用正文</span>
+                <p id="assistant-selection-text"></p>
+              </div>
+              <button id="assistant-selection-clear" type="button" aria-label="移除已引用的正文" title="移除引用">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17" /></svg>
+              </button>
+            </div>
+            <label class="sr-only" for="assistant-input">询问这份笔记</label>
+            <textarea
+              id="assistant-input"
+              rows="2"
+              maxlength="800"
+              placeholder="问点什么？"
+            ></textarea>
+            <div class="assistant-composer__actions">
+              <span class="assistant-model-label" id="assistant-model-label" hidden>
+                <span aria-hidden="true"></span>
+                <span id="assistant-model-label-text">正在检查本地模型…</span>
+              </span>
+              <button class="assistant-stop" id="assistant-stop" type="button" hidden>停止</button>
+              <button class="assistant-send" id="assistant-send" type="submit" aria-label="发送问题">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 4 17 8-17 8 3-8-3-8Z" /><path d="M7 12h14" /></svg>
+              </button>
+            </div>
+          </form>
+        </section>
+      </aside>
+    </div>
+
+    <dialog class="search-dialog" id="search-dialog" aria-labelledby="search-title">
+      <div class="search-dialog__header">
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="m16 16 4 4" />
+        </svg>
+        <label class="sr-only" for="search-input" id="search-title">搜索全部笔记</label>
+        <input
+          id="search-input"
+          type="search"
+          placeholder="搜索全部笔记正文…"
+          autocomplete="off"
+        />
+        <button class="dialog-close" id="search-close" type="button" aria-label="关闭搜索">Esc</button>
+      </div>
+      <div class="search-dialog__scope">
+        <span id="search-scope-term">Semester notes</span>
+        <span id="search-count">Loading…</span>
+      </div>
+      <div class="search-results" id="search-results" aria-live="polite"></div>
+    </dialog>
+
+    <dialog class="portal-dialog settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+      <div class="portal-dialog__header">
+        <div>
+          <p class="portal-dialog__eyebrow">Note Portal</p>
+          <h2 id="settings-title">设置</h2>
+        </div>
+        <button class="portal-dialog__close" id="settings-close" type="button" aria-label="关闭设置">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+      </div>
+      <div class="settings-dialog__body">
+        <section class="settings-section" aria-labelledby="settings-account-title">
+          <div class="settings-section__heading">
+            <h3 id="settings-account-title">当前用户</h3>
+            <span class="settings-account-status" id="settings-account-status">正在读取身份…</span>
+          </div>
+          <p class="settings-account-email" id="settings-account-email">—</p>
+          <p class="settings-section__hint">共享服务器上的身份来自 Cloudflare Access 验签结果；本地版本不会保存登录邮箱。</p>
+        </section>
+
+        <section class="settings-section" aria-labelledby="settings-theme-title">
+          <div class="settings-section__heading">
+            <h3 id="settings-theme-title">阅读配色</h3>
+          </div>
+          <p class="settings-section__hint">选择适合长时间阅读的页面配色。</p>
+          <div class="reading-theme-options" role="group" aria-label="阅读配色">
+            <button class="reading-theme-option" type="button" data-reading-theme="light" aria-pressed="true">
+              <span class="reading-theme-option__swatch reading-theme-option__swatch--light" aria-hidden="true"></span>
+              <span>白昼</span>
+            </button>
+            <button class="reading-theme-option" type="button" data-reading-theme="warm" aria-pressed="false">
+              <span class="reading-theme-option__swatch reading-theme-option__swatch--warm" aria-hidden="true"></span>
+              <span>暖纸</span>
+            </button>
+            <button class="reading-theme-option" type="button" data-reading-theme="dark" aria-pressed="false">
+              <span class="reading-theme-option__swatch reading-theme-option__swatch--dark" aria-hidden="true"></span>
+              <span>夜间</span>
+            </button>
+          </div>
+          <p class="settings-section__hint">主题色与本机 Logo 请在 Note Portal 控制窗口的“设置与条款”中选择；修改后刷新此页。</p>
+        </section>
+
+        <section class="settings-section settings-section--actions" aria-labelledby="settings-help-title">
+          <div class="settings-section__heading">
+            <h3 id="settings-help-title">支持与反馈</h3>
+          </div>
+          <div class="settings-actions">
+            <button class="settings-action" id="settings-feedback" type="button">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5.5h14v10H9l-4 3v-13Z" /><path d="M8 9h8M8 12h5" /></svg>
+              <span><strong>问题与建议</strong><small>反馈会安全保存到服务器，由站点维护者查看。</small></span>
+            </button>
+            <button class="settings-action" id="settings-welcome" type="button">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 10.5V17M12 7h.01" /></svg>
+              <span><strong>再次查看介绍</strong><small>查看欢迎、维护支持与反馈说明。</small></span>
+            </button>
+          </div>
+        </section>
+
+        <section class="settings-notice" aria-labelledby="settings-notice-title">
+          <h3 id="settings-notice-title">使用声明</h3>
+          <p>本机资料库仅供你在有权使用的范围内阅读。请遵守适用的学术诚信、版权、隐私和保密要求；通常不建议将服务部署到公网上。</p>
+        </section>
+      </div>
+    </dialog>
+
+    <dialog class="portal-dialog feedback-dialog" id="feedback-dialog" aria-labelledby="feedback-title">
+      <form id="feedback-form">
+        <div class="portal-dialog__header">
+          <div>
+            <p class="portal-dialog__eyebrow">Feedback</p>
+            <h2 id="feedback-title">问题与建议</h2>
+          </div>
+          <button class="portal-dialog__close" id="feedback-close" type="button" aria-label="关闭反馈">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div class="feedback-dialog__body">
+          <p class="feedback-identity" id="feedback-identity">正在确认当前用户…</p>
+          <label class="feedback-field" for="feedback-kind">
+            <span>类型</span>
+            <select id="feedback-kind">
+              <option value="problem">遇到问题</option>
+              <option value="suggestion">功能建议</option>
+              <option value="other">其他</option>
+            </select>
+          </label>
+          <label class="feedback-field" for="feedback-message">
+            <span>反馈内容</span>
+            <textarea id="feedback-message" rows="7" maxlength="4000" required placeholder="请描述你遇到的问题或希望改进的地方…"></textarea>
+          </label>
+          <p class="feedback-status" id="feedback-status" role="status" aria-live="polite"></p>
+        </div>
+        <div class="portal-dialog__actions">
+          <button class="secondary-action" id="feedback-cancel" type="button">取消</button>
+          <button class="primary-action" id="feedback-submit" type="submit">提交反馈</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="portal-dialog welcome-dialog" id="welcome-dialog" aria-labelledby="welcome-title" closedby="none">
+      <div class="welcome-dialog__progress" aria-hidden="true">
+        <span class="is-active"></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="welcome-dialog__stage" id="welcome-stage" aria-live="polite">
+        <div class="welcome-step" data-welcome-step="0">
+          <div class="welcome-step__icon" aria-hidden="true">
+            <img src="favicon.png?v=note-portal-1" alt="" />
+          </div>
+          <p class="portal-dialog__eyebrow">Welcome</p>
+          <h2 id="welcome-title">欢迎来到 Note Portal</h2>
+          <p>这里集中整理本学期课程笔记，提供目录、全文搜索与沉浸阅读。内容仅向获准用户开放，请勿外传。</p>
+        </div>
+        <div class="welcome-step" data-welcome-step="1" hidden>
+          <div class="welcome-step__icon welcome-step__icon--notice" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 3 19 6v5.4c0 4.5-2.8 7.6-7 9.6-4.2-2-7-5.1-7-9.6V6l7-3Z" /><path d="m9.2 12 1.8 1.8 4-4" /></svg>
+          </div>
+          <p class="portal-dialog__eyebrow">Before you read</p>
+          <h2 id="welcome-notice-title">仅供个人学习，请勿外传</h2>
+          <p>本站内容只向获准用户开放。请勿转发访问链接、共享登录验证码，也不要批量复制、公开发布或将笔记用于商业用途；引用课程材料时请遵守学校要求与原作者版权。</p>
+        </div>
+        <div class="welcome-step welcome-step--immersive" data-welcome-step="2" hidden>
+          <p class="portal-dialog__eyebrow">Immersive reading</p>
+          <h2 id="welcome-immersive-title">一键进入全屏沉浸模式</h2>
+          <div class="welcome-immersive-preview" aria-hidden="true">
+            <div class="welcome-immersive-preview__bar"><span></span><span></span><span></span></div>
+            <div class="welcome-immersive-preview__page">
+              <span class="welcome-immersive-preview__rail"></span>
+              <span class="welcome-immersive-preview__copy"></span>
+              <span class="welcome-immersive-preview__copy welcome-immersive-preview__copy--short"></span>
+            </div>
+            <span class="welcome-immersive-preview__hint">全屏按钮</span>
+            <span class="welcome-immersive-preview__button">
+              <svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" /></svg>
+            </span>
+          </div>
+          <p>打开任意笔记后，点击右下角圆形按钮进入浏览器全屏。正文会自动加宽；顶部导航继续保留，右侧“On this page”目录默认收起，需要跳转章节时可随时展开。</p>
+        </div>
+        <div class="welcome-step welcome-step--settings" data-welcome-step="3" hidden>
+          <div class="welcome-step__icon welcome-step__icon--settings" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" /><path d="M19 13.5v-3l-2-.7-.6-1.4.9-1.9-2.1-2.1-1.9.9-1.4-.6L11.2 3h-3l-.7 2-1.4.6-1.9-.9-2.1 2.1.9 1.9-.6 1.4-2 .7v3l2 .7.6 1.4-.9 1.9 2.1 2.1 1.9-.9 1.4.6.7 2h3l.7-2 1.4-.6 1.9.9 2.1-2.1-.9-1.9.6-1.4 2-.7Z" transform="translate(1.4 0) scale(.88)" /></svg>
+          </div>
+          <p class="portal-dialog__eyebrow">Settings</p>
+          <h2 id="welcome-settings-title">把阅读环境调成你喜欢的样子</h2>
+          <div class="welcome-feature-grid" aria-label="设置功能介绍">
+            <div><span class="welcome-feature-grid__swatches" aria-hidden="true"><i></i><i></i><i></i></span><strong>阅读配色</strong><small>白昼、暖纸与深色</small></div>
+            <div><span class="welcome-feature-grid__symbol" aria-hidden="true">✎</span><strong>问题反馈</strong><small>连同登录邮箱安全保存</small></div>
+            <div><span class="welcome-feature-grid__symbol" aria-hidden="true">↺</span><strong>阅读续接</strong><small>回到上次阅读章节</small></div>
+          </div>
+          <p>这些选项都在顶部导航栏的设置按钮里；反馈会保存到手机服务器，方便我确认问题与后续改进。</p>
+        </div>
+        <div class="welcome-step" data-welcome-step="4" hidden>
+          <div class="welcome-step__icon welcome-step__icon--coffee" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 8.5h11v5.8A4.7 4.7 0 0 1 11.3 19H9.7A4.7 4.7 0 0 1 5 14.3V8.5Z" /><path d="M16 10h1.6a2.4 2.4 0 0 1 0 4.8H16M7 5.5h7" /></svg>
+          </div>
+          <p class="portal-dialog__eyebrow">Support</p>
+          <h2 id="welcome-support-title">请我喝杯咖啡</h2>
+          <p>如果这些笔记对你有帮助，可以通过 Buy Me a Coffee 自愿支持域名与日常维护费用，约 <strong id="welcome-support-amount">A$5</strong> 即可。是否支持完全自愿，不影响访问。</p>
+          <span class="welcome-support-wait" id="welcome-support-wait" role="status" aria-live="polite" hidden></span>
+          <a class="welcome-support-link" id="welcome-support-link" href="#" target="_blank" rel="noopener noreferrer" hidden>打开 Buy Me a Coffee</a>
+        </div>
+      </div>
+      <div class="welcome-dialog__actions">
+        <div>
+          <button class="secondary-action" id="welcome-back" type="button" hidden>上一步</button>
+          <button class="primary-action" id="welcome-next" type="button">下一步</button>
+        </div>
+      </div>
+    </dialog>
+
+    <script src="vendor/marked.umd.js"></script>
+    <script src="vendor/katex/katex.min.js"></script>
+  <script src="app.js?v=20260920-welcome-bmc-wait-1"></script>
+  </body>
+</html>

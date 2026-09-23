@@ -12,7 +12,7 @@ use std::{
 use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use tauri::{
-    menu::MenuBuilder,
+    menu::{Menu, MenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, State, WindowEvent,
 };
@@ -22,10 +22,34 @@ use tauri_plugin_opener::OpenerExt;
 
 use library::{Diagnostic, Profile, TreeNode};
 
-const NOTICE_VERSION: &str = "1.1";
+const NOTICE_VERSION: &str = "1.2";
+const GUIDE_VERSION: &str = "1";
 const NOTICE: &str = include_str!("../../docs/ACADEMIC_INTEGRITY_NOTICE.md");
 const GUIDE: &str = include_str!("../../docs/GETTING_STARTED.zh-CN.md");
+const GUIDE_EN: &str = include_str!("../../docs/GETTING_STARTED.en.md");
 const LICENSE: &str = include_str!("../../../../LICENSE");
+const MAX_BRAND_LOGO_BYTES: usize = 2 * 1024 * 1024;
+
+#[derive(Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ThemeColor {
+    #[default]
+    Green,
+    Crimson,
+    Blue,
+    Violet,
+}
+
+impl ThemeColor {
+    fn css(self) -> &'static str {
+        match self {
+            Self::Green => "#14684e",
+            Self::Crimson => "#a32432",
+            Self::Blue => "#165e91",
+            Self::Violet => "#6341a2",
+        }
+    }
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,13 +63,24 @@ struct Selection {
 struct Settings {
     notice_version: Option<String>,
     accepted_at: Option<String>,
+    guide_version: Option<String>,
     library: Option<Selection>,
     launch_at_login: bool,
+    theme_color: ThemeColor,
+    logo_file: Option<String>,
 }
 
 impl Settings {
     fn accepted(&self) -> bool {
         self.notice_version.as_deref() == Some(NOTICE_VERSION) && self.accepted_at.is_some()
+    }
+
+    fn guide_completed(&self) -> bool {
+        self.guide_version.as_deref() == Some(GUIDE_VERSION)
+    }
+
+    fn ready(&self) -> bool {
+        self.accepted() && self.guide_completed()
     }
 }
 
@@ -106,17 +141,16 @@ impl AppState {
             .map_err(|_| "无法写入本机设置；请检查磁盘和权限。".to_owned())
     }
 
-    fn ensure_accepted(&self) -> Result<(), String> {
+    fn ensure_ready(&self) -> Result<(), String> {
         if self.settings_error.is_some() {
             return Err("本机设置需要人工检查，不能继续使用旧的资料库。".into());
         }
-        if !self
-            .settings
-            .lock()
-            .map_err(|_| "本机设置暂时不可用。")?
-            .accepted()
-        {
+        let settings = self.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
+        if !settings.accepted() {
             return Err("请先阅读并同意当前使用提示。".into());
+        }
+        if !settings.guide_completed() {
+            return Err("请先完成首次使用指引。".into());
         }
         Ok(())
     }
@@ -127,6 +161,7 @@ impl AppState {
 struct Status {
     notice_version: &'static str,
     notice_accepted: bool,
+    guide_completed: bool,
     accepted_at: Option<String>,
     library_path: Option<String>,
     library_name: Option<String>,
@@ -139,6 +174,8 @@ struct Status {
     last_refresh: Option<String>,
     error: Option<String>,
     launch_at_login: bool,
+    theme_color: ThemeColor,
+    logo_selected: bool,
 }
 
 async fn current_status(state: &Arc<AppState>) -> Status {
@@ -174,6 +211,7 @@ async fn current_status(state: &Arc<AppState>) -> Status {
     Status {
         notice_version: NOTICE_VERSION,
         notice_accepted: settings.accepted(),
+        guide_completed: settings.guide_completed(),
         accepted_at: settings.accepted_at,
         library_path: settings
             .library
@@ -207,6 +245,8 @@ async fn current_status(state: &Arc<AppState>) -> Status {
                 .and_then(|error| error.clone())
         }),
         launch_at_login: settings.launch_at_login,
+        theme_color: settings.theme_color,
+        logo_selected: settings.logo_file.is_some(),
     }
 }
 
@@ -221,8 +261,12 @@ fn get_notice() -> String {
 }
 
 #[tauri::command]
-fn get_guide() -> &'static str {
-    GUIDE
+fn get_guide(language: String) -> &'static str {
+    if language == "en" {
+        GUIDE_EN
+    } else {
+        GUIDE
+    }
 }
 
 #[tauri::command]
@@ -240,11 +284,215 @@ fn accept_notice(state: State<'_, Arc<AppState>>) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn complete_guide(state: State<'_, Arc<AppState>>) -> Result<(), String> {
+    if state.settings_error.is_some() {
+        return Err("本机设置已损坏。请先备份并人工检查设置文件。".into());
+    }
+    let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
+    if !settings.accepted() {
+        return Err("请先阅读并同意当前使用提示。".into());
+    }
+    let mut next = settings.clone();
+    next.guide_version = Some(GUIDE_VERSION.into());
+    state.save(&next)?;
+    *settings = next;
+    Ok(())
+}
+
+fn logo_kind(bytes: &[u8]) -> Result<(&'static str, &'static str), String> {
+    if bytes.len() > MAX_BRAND_LOGO_BYTES {
+        return Err("Logo 超过 2 MiB，请选择较小的图片。".into());
+    }
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Ok(("png", "image/png"))
+    } else if bytes.starts_with(b"\xff\xd8\xff") {
+        Ok(("jpg", "image/jpeg"))
+    } else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        Ok(("webp", "image/webp"))
+    } else {
+        Err("请选择 PNG、JPEG 或 WebP 图片；不接受 SVG 或其他格式。".into())
+    }
+}
+
+fn logo_path(settings_path: &Path, filename: &str) -> Result<PathBuf, String> {
+    let (id, extension) = filename
+        .strip_prefix("brand-logo-")
+        .and_then(|name| name.rsplit_once('.'))
+        .ok_or("本机 Logo 文件名无效。")?;
+    if id.len() != 24
+        || !id.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || !["png", "jpg", "webp"].contains(&extension)
+    {
+        return Err("本机 Logo 文件名无效。".into());
+    }
+    Ok(settings_path
+        .parent()
+        .ok_or("设置路径无效。")?
+        .join(filename))
+}
+
+fn branding_from_settings(
+    settings_path: &Path,
+    settings: &Settings,
+) -> Result<server::Branding, String> {
+    let logo = if let Some(filename) = &settings.logo_file {
+        let path = logo_path(settings_path, filename)?;
+        let meta = fs::symlink_metadata(&path)
+            .map_err(|_| "已选择的本机 Logo 无法读取；请在设置中重新选择或清除。")?;
+        if !meta.is_file() || meta.len() > MAX_BRAND_LOGO_BYTES as u64 {
+            return Err("已选择的本机 Logo 文件无效；请在设置中重新选择或清除。".into());
+        }
+        let bytes =
+            fs::read(path).map_err(|_| "已选择的本机 Logo 无法读取；请在设置中重新选择或清除。")?;
+        let (extension, mime) = logo_kind(&bytes)?;
+        if !filename.ends_with(&format!(".{extension}")) {
+            return Err("已选择的本机 Logo 格式与文件名不符。".into());
+        }
+        Some(server::BrandLogo {
+            mime,
+            bytes: Arc::new(bytes),
+        })
+    } else {
+        None
+    };
+    Ok(server::Branding {
+        color: settings.theme_color.css(),
+        logo,
+    })
+}
+
+async fn update_live_branding(
+    state: &Arc<AppState>,
+    branding: server::Branding,
+) -> Result<(), String> {
+    let live = state
+        .running
+        .lock()
+        .map_err(|_| "本地服务暂时不可用。")?
+        .as_ref()
+        .map(|running| running.service.branding.clone());
+    if let Some(live) = live {
+        *live.write().await = branding;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn set_theme_color(
+    state: State<'_, Arc<AppState>>,
+    theme_color: ThemeColor,
+) -> Result<Status, String> {
+    state.ensure_ready()?;
+    let _operation = state.operation.lock().await;
+    let branding = {
+        let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
+        let mut next = settings.clone();
+        next.theme_color = theme_color;
+        let branding = branding_from_settings(&state.settings_path, &next)?;
+        state.save(&next)?;
+        *settings = next;
+        branding
+    };
+    update_live_branding(state.inner(), branding).await?;
+    Ok(current_status(state.inner()).await)
+}
+
+#[tauri::command]
+async fn set_brand_logo(state: State<'_, Arc<AppState>>, bytes: Vec<u8>) -> Result<Status, String> {
+    state.ensure_ready()?;
+    let (extension, mime) = logo_kind(&bytes)?;
+    let _operation = state.operation.lock().await;
+    let mut random = [0u8; 12];
+    getrandom::fill(&mut random).map_err(|_| "无法创建本机 Logo 文件名。")?;
+    let id: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+    let filename = format!("brand-logo-{id}.{extension}");
+    let path = logo_path(&state.settings_path, &filename)?;
+    fs::create_dir_all(path.parent().ok_or("设置路径无效。")?)
+        .map_err(|_| "无法创建本机设置文件夹。")?;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|_| "无法保存本机 Logo。")?;
+    use std::io::Write;
+    if file.write_all(&bytes).is_err() {
+        drop(file);
+        return match fs::remove_file(&path) {
+            Ok(()) => Err("无法完整保存本机 Logo。".into()),
+            Err(_) => Err("无法完整保存本机 Logo，且未能清理未完成的文件。".into()),
+        };
+    }
+    drop(file);
+    let updated = (|| -> Result<_, String> {
+        let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
+        let mut next = settings.clone();
+        let old = next.logo_file.replace(filename);
+        state.save(&next)?;
+        let branding = server::Branding {
+            color: next.theme_color.css(),
+            logo: Some(server::BrandLogo {
+                mime,
+                bytes: Arc::new(bytes),
+            }),
+        };
+        *settings = next;
+        Ok((old, branding))
+    })();
+    let (old, branding) = match updated {
+        Ok(updated) => updated,
+        Err(error) => {
+            return match fs::remove_file(&path) {
+                Ok(()) => Err(error),
+                Err(_) => Err(format!("{error} 未使用的 Logo 文件也未能清理。")),
+            };
+        }
+    };
+    update_live_branding(state.inner(), branding).await?;
+    if let Some(old) = old {
+        let old_path = logo_path(&state.settings_path, &old)?;
+        match fs::remove_file(old_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("新 Logo 已保存，但旧 Logo 文件无法清理。".into()),
+        }
+    }
+    Ok(current_status(state.inner()).await)
+}
+
+#[tauri::command]
+async fn clear_brand_logo(state: State<'_, Arc<AppState>>) -> Result<Status, String> {
+    state.ensure_ready()?;
+    let _operation = state.operation.lock().await;
+    let (old, branding) = {
+        let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
+        let mut next = settings.clone();
+        let old = next.logo_file.take();
+        state.save(&next)?;
+        let branding = server::Branding {
+            color: next.theme_color.css(),
+            logo: None,
+        };
+        *settings = next;
+        (old, branding)
+    };
+    update_live_branding(state.inner(), branding).await?;
+    if let Some(old) = old {
+        let old_path = logo_path(&state.settings_path, &old)?;
+        match fs::remove_file(old_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("Logo 已清除，但旧 Logo 文件无法清理。".into()),
+        }
+    }
+    Ok(current_status(state.inner()).await)
+}
+
+#[tauri::command]
 async fn pick_folder(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
 ) -> Result<Option<String>, String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.dialog().file().pick_folder(move |path| {
         let _ = sender.send(path.map(|path| path.to_string()));
@@ -260,13 +508,20 @@ struct Preview {
     diagnostics: Vec<Diagnostic>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NotePreview {
+    relative_path: String,
+    exists: bool,
+}
+
 #[tauri::command]
 async fn preview_folder(
     state: State<'_, Arc<AppState>>,
     path: String,
     profile: Profile,
 ) -> Result<Preview, String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let root = PathBuf::from(path);
     let snapshot = tokio::task::spawn_blocking(move || library::scan(&root, profile, 1))
         .await
@@ -284,13 +539,20 @@ async fn activate(
     selection: Selection,
     open_browser: bool,
 ) -> Result<Status, String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let _operation = state.operation.lock().await;
     let root = selection
         .path
         .canonicalize()
         .map_err(|_| "资料库文件夹无法打开。")?;
-    let (new_service, new_handle) = server::start(root.clone(), selection.profile).await?;
+    let existing_settings = state
+        .settings
+        .lock()
+        .map_err(|_| "本机设置暂时不可用。")?
+        .clone();
+    let branding = branding_from_settings(&state.settings_path, &existing_settings)?;
+    let (new_service, new_handle) =
+        server::start(root.clone(), selection.profile, branding).await?;
     let mut next = state
         .settings
         .lock()
@@ -364,7 +626,13 @@ async fn create_library(
     name: String,
     profile: Profile,
 ) -> Result<Status, String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
+    let settings = state
+        .settings
+        .lock()
+        .map_err(|_| "本机设置暂时不可用。")?
+        .clone();
+    branding_from_settings(&state.settings_path, &settings)?;
     validate_name(&name)?;
     let parent = PathBuf::from(parent)
         .canonicalize()
@@ -396,7 +664,7 @@ async fn start_service(
     state: State<'_, Arc<AppState>>,
     open_browser: bool,
 ) -> Result<Status, String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let existing_url = {
         state
             .running
@@ -441,7 +709,7 @@ async fn stop_service(state: State<'_, Arc<AppState>>) -> Result<Status, String>
 
 #[tauri::command]
 async fn refresh_now(state: State<'_, Arc<AppState>>) -> Result<Status, String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let handle = state
         .running
         .lock()
@@ -455,7 +723,7 @@ async fn refresh_now(state: State<'_, Arc<AppState>>) -> Result<Status, String> 
 
 #[tauri::command]
 async fn open_portal(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let url = state
         .running
         .lock()
@@ -470,7 +738,7 @@ async fn open_portal(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<
 
 #[tauri::command]
 fn open_library_folder(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let path = state
         .settings
         .lock()
@@ -486,7 +754,7 @@ fn open_library_folder(app: AppHandle, state: State<'_, Arc<AppState>>) -> Resul
 
 #[tauri::command]
 fn open_support(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     app.opener()
         .open_url("https://buymeacoffee.com/edward_lee", None::<&str>)
         .map_err(|_| "无法打开支持页面；请检查默认浏览器设置。".to_owned())
@@ -498,7 +766,7 @@ fn set_launch_at_login(
     state: State<'_, Arc<AppState>>,
     enabled: bool,
 ) -> Result<(), String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
     let previous = settings.launch_at_login;
     let apply = |value| {
@@ -522,7 +790,7 @@ fn set_launch_at_login(
 }
 
 fn active_library(state: &Arc<AppState>, expected: Profile) -> Result<PathBuf, String> {
-    state.ensure_accepted()?;
+    state.ensure_ready()?;
     let running = state.running.lock().map_err(|_| "本地服务暂时不可用。")?;
     let active = running.as_ref().ok_or("请先启动本地服务。")?;
     if active.profile != expected {
@@ -548,6 +816,41 @@ fn safe_existing_folder(root: &Path, relative: &str) -> Result<PathBuf, String> 
     Ok(target)
 }
 
+fn general_note_target(
+    root: &Path,
+    title: &str,
+    folder: &str,
+) -> Result<(PathBuf, String), String> {
+    let title = title.trim();
+    validate_name(title)?;
+    let folder = safe_existing_folder(root, folder)?;
+    let filename = format!("{title}.md");
+    validate_name(&filename)?;
+    let target = folder.join(filename);
+    let relative_path = target
+        .strip_prefix(root)
+        .map_err(|_| "目标文件不在当前资料库内。")?
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/");
+    Ok((target, relative_path))
+}
+
+#[tauri::command]
+fn preview_note(
+    state: State<'_, Arc<AppState>>,
+    title: String,
+    folder: String,
+) -> Result<NotePreview, String> {
+    let root = active_library(state.inner(), Profile::General)?;
+    let (target, relative_path) = general_note_target(&root, &title, &folder)?;
+    Ok(NotePreview {
+        relative_path,
+        exists: fs::symlink_metadata(target).is_ok(),
+    })
+}
+
 #[tauri::command]
 async fn create_note(
     state: State<'_, Arc<AppState>>,
@@ -555,13 +858,8 @@ async fn create_note(
     folder: String,
 ) -> Result<Status, String> {
     let root = active_library(state.inner(), Profile::General)?;
-    let title = title.trim();
-    validate_name(title)?;
-    let folder = safe_existing_folder(&root, &folder)?;
-    let filename = format!("{title}.md");
-    validate_name(&filename)?;
-    let target = folder.join(filename);
-    let content = format!("# {title}\n");
+    let (target, _) = general_note_target(&root, &title, &folder)?;
+    let content = format!("# {}\n", title.trim());
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -644,6 +942,67 @@ fn show_window(app: &AppHandle) {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn system_language() -> &'static str {
+    #[link(name = "Kernel32")]
+    extern "system" {
+        fn GetUserDefaultUILanguage() -> u16;
+    }
+    // LANGID's lower ten bits identify the primary language (Chinese = 0x04).
+    if (unsafe { GetUserDefaultUILanguage() } & 0x03ff) == 0x04 {
+        "zh"
+    } else {
+        "en"
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn system_language() -> &'static str {
+    if std::env::var("LANG").is_ok_and(|value| value.to_ascii_lowercase().starts_with("zh")) {
+        "zh"
+    } else {
+        "en"
+    }
+}
+
+fn tray_menu(app: &AppHandle, language: &str) -> tauri::Result<Menu<tauri::Wry>> {
+    let zh = language == "zh";
+    MenuBuilder::new(app)
+        .text(
+            "show",
+            if zh {
+                "显示控制窗口"
+            } else {
+                "Show control window"
+            },
+        )
+        .text("open", if zh { "打开阅读器" } else { "Open reader" })
+        .text("start", if zh { "启动服务" } else { "Start service" })
+        .text("stop", if zh { "停止服务" } else { "Stop service" })
+        .separator()
+        .text(
+            "quit",
+            if zh {
+                "退出 Note Portal"
+            } else {
+                "Quit Note Portal"
+            },
+        )
+        .build()
+}
+
+#[tauri::command]
+fn set_ui_language(app: AppHandle, language: String) -> Result<(), String> {
+    if language != "zh" && language != "en" {
+        return Err("Unsupported interface language".into());
+    }
+    let menu = tray_menu(&app, &language).map_err(|_| "Unable to update taskbar menu")?;
+    app.tray_by_id("note-portal-tray")
+        .ok_or("Taskbar icon is unavailable")?
+        .set_menu(Some(menu))
+        .map_err(|_| "Unable to update taskbar menu".to_owned())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -661,6 +1020,7 @@ fn main() {
             get_notice,
             get_guide,
             accept_notice,
+            complete_guide,
             pick_folder,
             preview_folder,
             select_library,
@@ -673,7 +1033,12 @@ fn main() {
             open_support,
             set_launch_at_login,
             create_note,
+            preview_note,
             create_week,
+            set_theme_color,
+            set_brand_logo,
+            clear_brand_logo,
+            set_ui_language,
             quit,
         ])
         .setup(|app| {
@@ -681,16 +1046,9 @@ fn main() {
             let state = AppState::load(settings_path);
             app.manage(state.clone());
 
-            let menu = MenuBuilder::new(app)
-                .text("show", "显示控制窗口")
-                .text("open", "打开阅读器")
-                .text("start", "启动服务")
-                .text("stop", "停止服务")
-                .separator()
-                .text("quit", "退出 Note Portal")
-                .build()?;
+            let menu = tray_menu(app.handle(), system_language())?;
             let icon = app.default_window_icon().ok_or("缺少应用图标")?.clone();
-            TrayIconBuilder::new()
+            TrayIconBuilder::with_id("note-portal-tray")
                 .icon(icon)
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -738,7 +1096,7 @@ fn main() {
                     .settings
                     .lock()
                     .expect("settings mutex poisoned")
-                    .accepted()
+                    .ready()
             {
                 if let Some(window) = app.get_webview_window("main") {
                     window.hide()?;
@@ -747,10 +1105,7 @@ fn main() {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let selection = state.settings.lock().ok().and_then(|settings| {
-                    settings
-                        .accepted()
-                        .then(|| settings.library.clone())
-                        .flatten()
+                    settings.ready().then(|| settings.library.clone()).flatten()
                 });
                 if let Some(selection) = selection {
                     if let Err(error) = activate(&app_handle, &state, selection, !autostart).await {
@@ -768,7 +1123,7 @@ fn main() {
                 if !state
                     .settings
                     .lock()
-                    .map(|settings| settings.accepted())
+                    .map(|settings| settings.ready())
                     .unwrap_or(false)
                 {
                     window.app_handle().exit(0);
@@ -780,4 +1135,71 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("Note Portal failed to start");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn general_note_preview_uses_the_creation_path() {
+        let library = tempfile::tempdir().unwrap();
+        fs::create_dir(library.path().join("reading")).unwrap();
+        let root = library.path().canonicalize().unwrap();
+
+        let (target, relative) = general_note_target(&root, "  Book notes  ", "reading").unwrap();
+        assert_eq!(relative, "reading/Book notes.md");
+        assert_eq!(target, root.join("reading").join("Book notes.md"));
+    }
+
+    #[test]
+    fn general_note_preview_rejects_paths_outside_the_library() {
+        let library = tempfile::tempdir().unwrap();
+        assert!(general_note_target(library.path(), "Note", "../outside").is_err());
+        assert!(general_note_target(library.path(), "../outside", "").is_err());
+    }
+
+    #[test]
+    fn onboarding_requires_current_notice_and_completed_guide() {
+        let mut settings = Settings::default();
+        assert!(!settings.ready());
+        settings.notice_version = Some(NOTICE_VERSION.into());
+        settings.accepted_at = Some("2026-09-23T00:00:00Z".into());
+        assert!(settings.accepted());
+        assert!(!settings.ready());
+        settings.guide_version = Some(GUIDE_VERSION.into());
+        assert!(settings.ready());
+        settings.notice_version = Some("1.1".into());
+        assert!(!settings.ready());
+    }
+
+    #[test]
+    fn brand_logo_accepts_only_small_raster_images_and_safe_paths() {
+        assert_eq!(logo_kind(b"\x89PNG\r\n\x1a\nbody").unwrap().0, "png");
+        assert_eq!(logo_kind(b"\xff\xd8\xffbody").unwrap().0, "jpg");
+        assert_eq!(logo_kind(b"RIFF0000WEBPbody").unwrap().0, "webp");
+        assert!(logo_kind(b"<svg><script/></svg>").is_err());
+        assert!(logo_kind(&vec![0; MAX_BRAND_LOGO_BYTES + 1]).is_err());
+        let dir = tempfile::tempdir().unwrap();
+        let settings = dir.path().join("settings.json");
+        assert!(logo_path(&settings, "../secret.png").is_err());
+        assert!(logo_path(&settings, "brand-logo-1234.png").is_err());
+        assert!(logo_path(&settings, "brand-logo-0123456789abcdef01234567.png").is_ok());
+    }
+
+    #[test]
+    fn branding_is_loaded_from_app_data_not_a_user_library() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings_path = dir.path().join("settings.json");
+        let filename = "brand-logo-0123456789abcdef01234567.png";
+        fs::write(dir.path().join(filename), b"\x89PNG\r\n\x1a\nbody").unwrap();
+        let settings = Settings {
+            theme_color: ThemeColor::Blue,
+            logo_file: Some(filename.into()),
+            ..Settings::default()
+        };
+        let brand = branding_from_settings(&settings_path, &settings).unwrap();
+        assert_eq!(brand.color, "#165e91");
+        assert_eq!(brand.logo.unwrap().mime, "image/png");
+    }
 }

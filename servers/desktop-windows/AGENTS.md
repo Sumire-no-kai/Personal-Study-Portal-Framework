@@ -29,14 +29,11 @@
 - Keep OS-specific code behind narrow interfaces in `platform/`.
 - Use stable document IDs and library-relative paths at every browser boundary.
 - Do not expose absolute paths or document bodies in normal logs.
-- The reader lives once, at the repository root, and is shared by all server
-  forms. Layout, design and reader-behavior changes are made there so that one
-  edit reaches every form. This replaces the earlier rule that treated the
-  desktop copy as an independent baseline; the two copies were byte-identical
-  duplicates, never a fork.
-- Change the root reader only for behavior that is correct on every form. Put
-  desktop-only behavior in this directory instead, and never fork the reader to
-  get it.
+- The root reader is the static-site baseline. Windows embeds its own copy in
+  `reader/` so Windows-only design and branding changes do not affect the root
+  reader or the separate private deployment. Keep the copy content-free.
+- Change only the Windows copy for Windows-specific reader behavior. Do not
+  silently re-copy later root changes into it; review such changes explicitly.
 - Keep the root reader self-contained and content-free: it ships with
   `vendor/` because `index.html` references it relatively, and it must never
   carry notes, generated manifests, course configuration, indexes, credentials,

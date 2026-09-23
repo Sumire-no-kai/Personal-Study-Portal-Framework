@@ -35,12 +35,23 @@ use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use crate::library::{self, Profile, Snapshot};
 
 static READER_VENDOR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../../vendor");
-const READER_INDEX: &str = include_str!("../../../../index.html");
-const READER_APP: &[u8] = include_bytes!("../../../../app.js");
-const READER_STYLES: &[u8] = include_bytes!("../../../../styles.css");
-const READER_THEME: &[u8] = include_bytes!("../../../../theme-init.js");
-const READER_LOGO: &[u8] = include_bytes!("../../../../USydLogoBlack.svg.png");
+const READER_INDEX: &str = include_str!("../../reader/index.html");
+const READER_APP: &[u8] = include_bytes!("../../reader/app.js");
+const READER_STYLES: &[u8] = include_bytes!("../../reader/styles.css");
+const READER_THEME: &[u8] = include_bytes!("../../reader/theme-init.js");
 static DESKTOP_ICON: &[u8] = include_bytes!("../icons/icon.png");
+
+#[derive(Clone)]
+pub struct BrandLogo {
+    pub mime: &'static str,
+    pub bytes: Arc<Vec<u8>>,
+}
+
+#[derive(Clone)]
+pub struct Branding {
+    pub color: &'static str,
+    pub logo: Option<BrandLogo>,
+}
 
 #[derive(Clone)]
 struct WebState {
@@ -53,6 +64,7 @@ struct WebState {
     sequence: Arc<AtomicU64>,
     refresh_lock: Arc<tokio::sync::Mutex<()>>,
     last_error: Arc<RwLock<Option<String>>>,
+    branding: Arc<RwLock<Branding>>,
 }
 
 pub struct Service {
@@ -60,6 +72,7 @@ pub struct Service {
     access_token: String,
     pub snapshot: Arc<RwLock<Arc<Snapshot>>>,
     pub last_error: Arc<RwLock<Option<String>>>,
+    pub branding: Arc<RwLock<Branding>>,
     shutdown: Option<oneshot::Sender<()>>,
     watcher: JoinHandle<()>,
 }
@@ -182,7 +195,6 @@ fn reader_asset(path: &str) -> Response {
         "app.js" => READER_APP,
         "styles.css" => READER_STYLES,
         "theme-init.js" => READER_THEME,
-        "USydLogoBlack.svg.png" => READER_LOGO,
         _ if path.starts_with("vendor/") => {
             let Some(file) = READER_VENDOR.get_file(&path["vendor/".len()..]) else {
                 return StatusCode::NOT_FOUND.into_response();
@@ -202,7 +214,6 @@ fn reader_asset(path: &str) -> Response {
 
 async fn index() -> Response {
     let html = READER_INDEX
-        .replace("<title>Study Portal</title>", "<title>Note Portal</title>")
         .replace("<body>", "<body class=\"profile-desktop\">")
         .replace(
             "  <script src=\"app.js",
@@ -214,6 +225,32 @@ async fn index() -> Response {
         HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'"),
     );
     response
+}
+
+async fn brand_styles(State(state): State<WebState>) -> Response {
+    let brand = state.branding.read().await;
+    let color = brand.color;
+    let logo = if brand.logo.is_some() {
+        "body.profile-desktop .brand__product::before { content: ''; display: inline-block; width: 30px; height: 30px; margin-right: 10px; vertical-align: middle; background: url('/reader-logo') center / contain no-repeat; }"
+    } else {
+        ""
+    };
+    let css = format!(
+        "body.profile-desktop {{ --primary: {color}; --primary-hover: color-mix(in srgb, {color}, black 18%); --primary-pressed: color-mix(in srgb, {color}, black 28%); --primary-pale: color-mix(in srgb, {color}, white 90%); --accent: {color}; --accent-pale: color-mix(in srgb, {color}, white 90%); }} :root[data-reading-theme='dark'] body.profile-desktop {{ --primary: color-mix(in srgb, {color}, white 48%); --primary-hover: color-mix(in srgb, {color}, white 60%); --primary-pressed: color-mix(in srgb, {color}, white 72%); --primary-pale: color-mix(in srgb, {color}, black 70%); --accent: color-mix(in srgb, {color}, white 48%); --accent-pale: color-mix(in srgb, {color}, black 70%); }} {logo}"
+    );
+    ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], css).into_response()
+}
+
+async fn brand_logo(State(state): State<WebState>) -> Response {
+    let brand = state.branding.read().await;
+    match &brand.logo {
+        Some(logo) => (
+            [(header::CONTENT_TYPE, logo.mime)],
+            logo.bytes.as_ref().clone(),
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn static_file(uri: Uri) -> Response {
@@ -450,7 +487,11 @@ fn relevant_event(root: &std::path::Path, event: &Result<NotifyEvent, notify::Er
     })
 }
 
-pub async fn start(root: PathBuf, profile: Profile) -> Result<(Service, WebHandle), String> {
+pub async fn start(
+    root: PathBuf,
+    profile: Profile,
+    branding: Branding,
+) -> Result<(Service, WebHandle), String> {
     let root = root.canonicalize().map_err(|_| "无法打开资料库文件夹。")?;
     let snapshot = tokio::task::spawn_blocking({
         let root = root.clone();
@@ -477,10 +518,13 @@ pub async fn start(root: PathBuf, profile: Profile) -> Result<(Service, WebHandl
         sequence: Arc::new(AtomicU64::new(1)),
         refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         last_error: Arc::new(RwLock::new(None)),
+        branding: Arc::new(RwLock::new(branding)),
     };
     let router = Router::new()
         .route("/", get(index))
         .route("/notes-manifest.js", get(manifest))
+        .route("/reader-brand.css", get(brand_styles))
+        .route("/reader-logo", get(brand_logo))
         .route("/api/health", get(health))
         .route("/api/library", get(library))
         .route("/api/documents/{id}", get(document))
@@ -526,6 +570,7 @@ pub async fn start(root: PathBuf, profile: Profile) -> Result<(Service, WebHandl
         access_token,
         snapshot: state.snapshot.clone(),
         last_error: state.last_error.clone(),
+        branding: state.branding.clone(),
         shutdown: Some(shutdown_tx),
         watcher: watcher_task,
     };
@@ -570,6 +615,10 @@ mod tests {
             sequence: Arc::new(AtomicU64::new(1)),
             refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
             last_error: Arc::new(RwLock::new(None)),
+            branding: Arc::new(RwLock::new(Branding {
+                color: "#14684e",
+                logo: None,
+            })),
         })
     }
 
@@ -629,9 +678,16 @@ mod tests {
     async fn document_routes_require_browser_bootstrap_session() {
         let root = tempfile::tempdir().unwrap();
         fs::write(root.path().join("a.md"), "# Private note").unwrap();
-        let (service, _) = start(root.path().to_path_buf(), Profile::General)
-            .await
-            .unwrap();
+        let (service, _) = start(
+            root.path().to_path_buf(),
+            Profile::General,
+            Branding {
+                color: "#14684e",
+                logo: None,
+            },
+        )
+        .await
+        .unwrap();
         let port = service.port;
         let token = service.access_token.clone();
         let unauthenticated =
@@ -673,8 +729,48 @@ mod tests {
         );
         assert_eq!(reader_asset("README.md").status(), StatusCode::NOT_FOUND);
         assert_eq!(
+            reader_asset("USydLogoBlack.svg.png").status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
             reader_asset("../.git/config").status(),
             StatusCode::NOT_FOUND
+        );
+    }
+
+    #[tokio::test]
+    async fn desktop_index_uses_private_reader_copy_and_brand_css() {
+        let response = index().await;
+        let body = axum::body::to_bytes(response.into_body(), 100_000)
+            .await
+            .unwrap();
+        let html = String::from_utf8(body.to_vec()).unwrap();
+        assert!(html.contains("reader-brand.css"));
+        assert!(!html.contains("USydLogoBlack.svg.png"));
+        assert!(html.contains("notes-manifest.js"));
+    }
+
+    #[tokio::test]
+    async fn brand_routes_use_only_selected_color_and_logo_bytes() {
+        let root = tempfile::tempdir().unwrap();
+        let handle = test_handle(root.path(), Profile::General);
+        *handle.0.branding.write().await = Branding {
+            color: "#165e91",
+            logo: Some(BrandLogo {
+                mime: "image/png",
+                bytes: Arc::new(b"\x89PNG\r\n\x1a\nbody".to_vec()),
+            }),
+        };
+        let css = brand_styles(State(handle.0.clone())).await;
+        let css_bytes = axum::body::to_bytes(css.into_body(), 10_000).await.unwrap();
+        let css = String::from_utf8(css_bytes.to_vec()).unwrap();
+        assert!(css.contains("#165e91"));
+        assert!(css.contains("/reader-logo"));
+        let logo = brand_logo(State(handle.0.clone())).await;
+        assert_eq!(logo.headers()[header::CONTENT_TYPE], "image/png");
+        assert_eq!(
+            axum::body::to_bytes(logo.into_body(), 100).await.unwrap(),
+            b"\x89PNG\r\n\x1a\nbody".as_slice()
         );
     }
 

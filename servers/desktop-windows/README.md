@@ -1,6 +1,6 @@
 # Note Portal
 
-Note Portal is a lightweight macOS and Windows service that turns a local
+Note Portal is a lightweight Windows alpha, with macOS support planned, that turns a local
 Markdown folder into a structured reading website. The desktop process selects
 and watches a library, runs the local service, and opens the user's normal
 browser. Study notes are an important built-in profile, not the only supported
@@ -20,15 +20,22 @@ content.
   desktop release.
 - The service listens on `127.0.0.1` by default. LAN access is a later,
   explicitly enabled capability.
-- First launch requires an explicit academic-integrity and responsible-use
-  acknowledgement before the app may select content or start its service.
+- First launch requires opening and scrolling to the end of the rendered
+  academic-integrity and responsible-use notice, explicit agreement, then
+  completion of the non-skippable guide before the app may select content or
+  start its service.
+- The compact control window defaults to Chinese or English from the system
+  language and offers a manual switch. Windows reader settings offer four
+  accent colours and an optional local PNG/JPEG/WebP logo up to 2 MiB. No
+  official institution logos are bundled.
 - General libraries preserve ordinary folders and recognise eligible `.md`
   documents recursively.
 - Study libraries follow the deterministic layout documented in
   [docs/LIBRARY_STRUCTURE.md](docs/LIBRARY_STRUCTURE.md):
   `content/<semester>/<unit>/<week-key>/<week-key>-notes.md`.
 - A no-terminal, beginner-oriented walkthrough is available in
-  [docs/GETTING_STARTED.zh-CN.md](docs/GETTING_STARTED.zh-CN.md).
+  [Chinese](docs/GETTING_STARTED.zh-CN.md) and
+  [English](docs/GETTING_STARTED.en.md).
 - A release-install and device QA checklist, including Windows on ARM, is in
   [docs/WINDOWS_TEST_PLAN.zh-CN.md](docs/WINDOWS_TEST_PLAN.zh-CN.md).
 
@@ -58,6 +65,7 @@ servers/desktop-windows/
 ├── docs/                        # User-facing policy and product documents
 ├── examples/                    # General and Study library fixtures
 ├── package.json
+├── reader/                      # Windows-only, content-free browser reader copy
 ├── src/                         # Small tray/status window
 ├── src-tauri/
 │   ├── capabilities/            # Minimum Tauri permissions
@@ -70,8 +78,9 @@ servers/desktop-windows/
 └── package-lock.json
 ```
 
-The desktop server embeds only the root reader's public assets at compile time;
-it does not copy that reader or include any user content. General and Study differ by their
+The desktop server embeds the Windows reader copy at compile time and uses
+shared vendored Marked/KaTeX libraries; it does not include any user content.
+General and Study differ by their
 discovery contract and navigation data, not by a second web application.
 
 ## Build the Windows alpha
@@ -101,9 +110,13 @@ The default host build writes its unsigned
 [NSIS setup executable](https://v2.tauri.app/distribute/windows-installer/)
 under `src-tauri/target/release/bundle/nsis/`. The public repository's
 Windows CI builds x64 and native ARM64 targets on separate Windows runners and
-uploads distinct artifacts for review. A version tag publishes both installers
-as a GitHub prerelease after both jobs pass; it does not assert clean-machine
-compatibility. The first `v0.1.0-alpha.1` release predates the ARM64 build and
+uploads temporary architecture-labelled artifacts for review. After a PR is
+merged, a `v*-alpha.*` tag at the current `master` commit triggers a GitHub
+prerelease with both installers and `SHA256SUMS.txt` only if both jobs pass. A
+PR or `master` push without that tag does not publish a release. The release
+description contains fixed installation/safety guidance plus generated change
+notes; it does not assert clean-machine compatibility. The first
+`v0.1.0-alpha.1` release predates the ARM64 build and
 contains only x64. ARM64 testers should choose an `arm64-setup.exe` asset from
 a newer release, not treat an emulated x64 run as native ARM64 validation.
 The ARM64 NSIS bootstrapper itself may use x86 emulation while the installed
@@ -111,18 +124,24 @@ application is native ARM64.
 Windows Defender/SmartScreen may warn about an unsigned alpha. Do not bypass
 such warnings on a machine you do not trust.
 
-The app must show the current responsible-use notice before any folder picker,
-watcher, or HTTP listener. Choose General for ordinary recursive `.md` files,
+The app must show the current responsible-use notice and require the first-run
+guide before any folder picker, watcher, or HTTP listener. The full notice and
+Settings copy render as formatted Markdown rather than raw source. Choose
+General for ordinary recursive `.md` files,
 or Study for `content/<semester>/<unit>/<week-key>/<week-key>-notes.md` plus
 optional `inbox/`. The status window previews recognised files and warnings;
 the normal browser reads the notes on a random `127.0.0.1` port. Only explicit
-**Create note** and **Create Week template** actions write into the library.
+**Create note** and **Create Week template** actions write into the library;
+the General form previews the exact destination and blocks a detected name
+collision before submission. The backend still creates exclusively, so a
+file appearing after the preview cannot be overwritten.
 
 ## Relationship to the existing Portal
 
-There is exactly one reader at the repository root. The desktop server embeds
-its audited static assets and serves them over loopback with a local library;
-it does not fork the reader.
+The repository-root reader remains the static-site baseline. Windows embeds
+its own copy in `reader/` and serves it over loopback with a local library.
+Changes to the Windows copy do not change the root site or a separate private
+Honor deployment. Review any future root-to-Windows reader sync explicitly.
 
 What the desktop build does exclude is content, not code: private notes,
 generated manifests, course configuration and indexes, and any credential.
