@@ -29,6 +29,8 @@ content.
   `content/<semester>/<unit>/<week-key>/<week-key>-notes.md`.
 - A no-terminal, beginner-oriented walkthrough is available in
   [docs/GETTING_STARTED.zh-CN.md](docs/GETTING_STARTED.zh-CN.md).
+- A release-install and device QA checklist, including Windows on ARM, is in
+  [docs/WINDOWS_TEST_PLAN.zh-CN.md](docs/WINDOWS_TEST_PLAN.zh-CN.md).
 
 ## One project, two platforms
 
@@ -87,10 +89,25 @@ cd ..
 npx tauri build
 ```
 
-The unsigned [NSIS setup executable](https://v2.tauri.app/distribute/windows-installer/)
-is written under `src-tauri/target/release/bundle/nsis/`. The public repository's
-Windows CI uploads build artifacts for review. A version tag publishes the
-installer as a GitHub prerelease; it does not assert clean-machine compatibility.
+For a local **native Windows on ARM** build, install the Visual Studio C++
+ARM64 build tools, then run `rustup target add aarch64-pc-windows-msvc` and
+`npx tauri build --target aarch64-pc-windows-msvc` from this directory. The
+ARM64 NSIS output is under
+`src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/`.
+The CI uses a native `windows-11-arm` runner instead of asking x64 testers to
+cross-compile.
+
+The default host build writes its unsigned
+[NSIS setup executable](https://v2.tauri.app/distribute/windows-installer/)
+under `src-tauri/target/release/bundle/nsis/`. The public repository's
+Windows CI builds x64 and native ARM64 targets on separate Windows runners and
+uploads distinct artifacts for review. A version tag publishes both installers
+as a GitHub prerelease after both jobs pass; it does not assert clean-machine
+compatibility. The first `v0.1.0-alpha.1` release predates the ARM64 build and
+contains only x64. ARM64 testers should choose an `arm64-setup.exe` asset from
+a newer release, not treat an emulated x64 run as native ARM64 validation.
+The ARM64 NSIS bootstrapper itself may use x86 emulation while the installed
+application is native ARM64.
 Windows Defender/SmartScreen may warn about an unsigned alpha. Do not bypass
 such warnings on a machine you do not trust.
 

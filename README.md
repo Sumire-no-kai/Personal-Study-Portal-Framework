@@ -44,7 +44,10 @@ the source tree. The static reader starts in a safe empty-library state; add a g
 ## Windows desktop alpha
 
 The [Windows prereleases](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)
-contain an unsigned `*-setup.exe` installer and a `SHA256SUMS.txt` checksum.
+contain unsigned architecture-labelled `*-setup.exe` installers and a
+`SHA256SUMS.txt` checksum. The first `v0.1.0-alpha.1` release is x64-only;
+Windows on ARM testers should use a later release containing an `arm64-setup.exe`
+asset for native ARM64 validation.
 Use the installer, not GitHub Packages. GitHub automatically supplies source
 archives for each release. This is an alpha: a Windows clean-machine install,
 runtime behavior, accessibility, resource budgets, and signing have not yet
@@ -57,12 +60,15 @@ to read the library. The first launch requires acceptance of the responsible-use
 notice. The desktop alpha has no built-in AI service and does not upload notes.
 See the [desktop guide](servers/desktop-windows/README.md) and
 [beginner walkthrough](servers/desktop-windows/docs/GETTING_STARTED.zh-CN.md).
+The [Windows device test plan](servers/desktop-windows/docs/WINDOWS_TEST_PLAN.zh-CN.md)
+covers clean installation, content safety, refresh, and native ARM64 checks.
 
 For contributors, the public repository uses one canonical reader at its root.
 The desktop binary embeds only its explicitly listed public reader assets; it
 does not bundle the selected library. Windows CI tests and builds the NSIS
-installer on pull requests and relevant pushes. A `v*-alpha.*` tag at the
-current `master` commit publishes a prerelease after those checks pass.
+installers for x64 and ARM64 on pull requests and relevant pushes. A
+`v*-alpha.*` tag at the current `master` commit publishes both installers as a
+prerelease only after both architecture jobs pass.
 
 ## Deploy the framework
 
