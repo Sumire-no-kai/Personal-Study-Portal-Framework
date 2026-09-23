@@ -57,6 +57,19 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Desktop libraries use the same reader shell with an ordinary folder tree. */
+.profile-desktop { --primary: #14684e; --primary-hover: #0d563f; --primary-pressed: #084c38; --primary-pale: #e8f3ed; --accent: #14684e; --accent-pale: #e8f3ed; --sidebar-header-surface: #f4f9f5; }
+.profile-desktop .brand__usyd-logo { display: none; }
+.profile-desktop .general-tree { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 1px solid var(--line); }
+.profile-desktop .general-tree:first-child { border-left: 0; padding-left: 0; }
+.profile-desktop .general-tree li { margin: 5px 0; }
+.profile-desktop .general-tree summary { cursor: pointer; padding: 7px 9px; color: var(--ink-soft); font-size: .9rem; font-weight: 650; border-radius: 8px; }
+.profile-desktop .general-tree summary:hover { background: var(--surface-strong); }
+.profile-desktop .general-tree__note { display: block; width: 100%; border: 0; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; padding: 8px 10px; font-size: .9rem; }
+.profile-desktop .general-tree__note:hover, .profile-desktop .general-tree__note[aria-current="page"] { background: var(--surface-strong); color: var(--primary); }
+.profile-desktop .general-overview__tree { margin-top: 22px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; }
+.profile-desktop #settings-feedback, .profile-desktop #settings-account-status, .profile-desktop #settings-account-email { display: none; }
+
 :root[data-reading-theme="warm"] {
   --bg: #e8dfcc;
   --surface: #eee5d4;

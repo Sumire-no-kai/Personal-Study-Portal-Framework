@@ -88,9 +88,87 @@ function protectMathInMarkdown(markdown) {
 function renderMarkdownWithMath(markdown) {
   const protectedContent = protectMathInMarkdown(markdown);
   const html = window.marked.parse(protectedContent.markdown, { gfm: true, breaks: false });
-  return html.replace(/PORTALMATHTOKEN(\d+)END/g, (_, index) =>
-    renderMathFormula(protectedContent.formulas[Number(index)]),
-  );
+  const output = document.createElement("template");
+  output.innerHTML = sanitizeNoteHtml(html);
+  const walker = document.createTreeWalker(output.content, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach((node) => {
+    const text = node.textContent || "";
+    const matches = [...text.matchAll(/PORTALMATHTOKEN(\d+)END/g)];
+    if (!matches.length) return;
+    const replacement = document.createDocumentFragment();
+    let offset = 0;
+    for (const match of matches) {
+      replacement.append(document.createTextNode(text.slice(offset, match.index)));
+      const formula = protectedContent.formulas[Number(match[1])];
+      if (formula) {
+        const math = document.createElement("template");
+        math.innerHTML = renderMathFormula(formula);
+        replacement.append(math.content);
+      } else {
+        replacement.append(document.createTextNode(match[0]));
+      }
+      offset = match.index + match[0].length;
+    }
+    replacement.append(document.createTextNode(text.slice(offset)));
+    node.replaceWith(replacement);
+  });
+  return output.innerHTML;
+}
+
+function isSafeNoteUrl(value, image = false) {
+  const href = String(value || "").trim();
+  if (!href) return false;
+  if (!image && href.startsWith("#")) return true;
+  try {
+    const url = new URL(href, window.location.href);
+    if (image) return url.origin === window.location.origin && ["http:", "https:"].includes(url.protocol);
+    return ["http:", "https:", "mailto:"].includes(url.protocol);
+  } catch (error) {
+    return false;
+  }
+}
+
+function sanitizeNoteHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const allowed = new Set([
+    "a", "blockquote", "br", "code", "del", "details", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6",
+    "hr", "img", "input", "li", "ol", "p", "pre", "span", "strong", "sub", "summary", "sup", "table",
+    "tbody", "td", "th", "thead", "tr", "ul",
+  ]);
+  const blocked = new Set(["audio", "button", "embed", "form", "iframe", "object", "script", "select", "style", "svg", "template", "textarea", "video"]);
+  [...template.content.querySelectorAll("*")].reverse().forEach((element) => {
+    const tag = element.tagName.toLowerCase();
+    if (blocked.has(tag)) {
+      element.remove();
+      return;
+    }
+    if (!allowed.has(tag)) {
+      element.replaceWith(...element.childNodes);
+      return;
+    }
+    if (tag === "input" && (element.getAttribute("type") !== "checkbox" || !element.hasAttribute("disabled"))) {
+      element.remove();
+      return;
+    }
+    [...element.attributes].forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value;
+      const safe = (tag === "a" && name === "href" && isSafeNoteUrl(value))
+        || (tag === "img" && name === "src" && isSafeNoteUrl(value, true))
+        || (tag === "img" && ["alt", "title"].includes(name))
+        || (tag === "a" && name === "title")
+        || (name === "id" && /^[^<>"'\s]{1,120}$/u.test(value))
+        || (name === "class" && /^[\w\s-]{1,120}$/.test(value))
+        || (name === "align" && ["td", "th"].includes(tag) && /^(left|center|right)$/i.test(value))
+        || (tag === "details" && name === "open")
+        || (tag === "input" && ["type", "disabled", "checked"].includes(name));
+      if (!safe) element.removeAttribute(attribute.name);
+    });
+  });
+  return template.innerHTML;
 }
 
 function isSafeAssistantLink(value) {
@@ -190,12 +268,14 @@ const LAST_READ_SCHEMA_VERSION = 1;
 const LAST_READ_MINIMUM_SCROLL_PX = 96;
 
 function flattenPortalNotes(data) {
+  if (data.profile === "general") return Array.isArray(data.documents) ? data.documents : [];
   return data.units.flatMap((unit) =>
     unit.weeks.map((note) => ({ ...note, unitCode: unit.code, unitName: unit.name })),
   );
 }
 
 function formatWeekLabel(note) {
+  if (portalData.profile === "general") return note.location || "资料库最外层";
   return note.weekLabel || `Week ${note.week}`;
 }
 
@@ -863,6 +943,13 @@ function updateViewerSessionPresentation() {
 }
 
 async function loadViewerSession(options = {}) {
+  if (portalData.desktop) {
+    viewerSession.loaded = true;
+    viewerSession.feedback = false;
+    viewerSession.error = "仅本机访问";
+    updateViewerSessionPresentation();
+    return viewerSession;
+  }
   if (viewerSession.loading) return viewerSession.loading;
   if (viewerSession.loaded && !options.force) return viewerSession;
 
@@ -1139,6 +1226,7 @@ function completeWelcome() {
 }
 
 function maybeShowWelcome() {
+  if (portalData.desktop) return;
   if (hasCompletedWelcome() || welcomeDialog.open) return;
   requestAnimationFrame(() => openWelcomeDialog());
 }
@@ -1355,6 +1443,7 @@ function applyPortalUpdate(latestPortalData) {
   portalManifestLoadComplete = true;
   flatNotes = flattenPortalNotes(portalData);
   activeUnits = portalData.units.filter((unit) => unit.weeks.length);
+  document.body.classList.toggle("profile-general", portalData.profile === "general");
   renderPortalIdentity();
 
   const requestedNoteId = getNoteIdFromHash();
@@ -1468,6 +1557,25 @@ function watchForPublishedPortalRelease() {
 }
 
 function renderPortalIdentity() {
+  document.body.classList.toggle("profile-desktop", portalData.desktop === true);
+  document.body.classList.toggle("profile-general", portalData.profile === "general");
+  if (portalData.desktop) {
+    document.querySelector(".brand__product").textContent = "Note Portal";
+    document.querySelector(".brand__usyd-logo")?.remove();
+    document.querySelector("#library-link span").textContent = "资料库目录";
+    document.querySelector("#sidebar")?.setAttribute("aria-label", "文件夹与文档导航");
+    document.querySelector("#course-navigation")?.setAttribute("aria-label", "文件夹与文档列表");
+    document.querySelector("#search-trigger")?.setAttribute("aria-label", "搜索文档");
+  }
+  if (portalData.profile === "general") {
+    semesterSelect.innerHTML = `<option value="${escapeHtml(portalData.id)}">${escapeHtml(portalData.label)}</option>`;
+    semesterSelect.value = portalData.id;
+    sidebarTerm.textContent = portalData.label;
+    sidebarSummary.textContent = `${flatNotes.length} ${flatNotes.length === 1 ? "document" : "documents"}`;
+    searchScopeTerm.textContent = portalData.label;
+    updateSupportPresentation();
+    return;
+  }
   semesterSelect.innerHTML = `
     <option value="__home__">All semesters</option>
     <option value="${escapeHtml(portalData.id)}">${escapeHtml(portalData.pickerLabel || portalData.label)}</option>`;
@@ -1479,6 +1587,15 @@ function renderPortalIdentity() {
 }
 
 function renderCurrentNoteIndicator(note, unit) {
+  if (portalData.desktop || portalData.profile === "general") {
+    currentNoteLabel.textContent = "当前文档";
+    currentNoteUnit.textContent = note.title;
+    currentNoteWeek.textContent = note.location || "资料库最外层";
+    currentNoteWeekShort.textContent = "文档";
+    currentNoteIndicator.setAttribute("aria-label", `当前文档：${note.title}`);
+    currentNoteIndicator.title = note.title;
+    return;
+  }
   const semesterLabel = formatCompactSemesterLabel(portalData.label);
   const weekLabel = formatWeekLabel(note);
   const accessibleLabel = `当前笔记：${portalData.label}，${unit.code} ${unit.name}，${weekLabel}`;
@@ -1505,6 +1622,10 @@ function getViewFromHash() {
 }
 
 function updateDocumentTitle(view, note = null) {
+  if (portalData.desktop || portalData.profile === "general") {
+    document.title = view === "note" ? `${(note || getActiveNote())?.title || portalData.label} | Note Portal` : `${portalData.label} | Note Portal`;
+    return;
+  }
   if (view === "home") {
     document.title = "Study Portal";
     return;
@@ -1536,7 +1657,7 @@ function setViewMode(view, note = null) {
 
   document.body.classList.toggle("view-home", isHome);
   document.body.classList.toggle("view-overview", isOverview);
-  semesterPicker.hidden = isHome;
+  semesterPicker.hidden = isHome || portalData.desktop || portalData.profile === "general";
   currentNoteIndicator.hidden = !isNote;
   printTrigger.hidden = !isNote;
   printTrigger.disabled = !isNote;
@@ -1553,7 +1674,7 @@ function setViewMode(view, note = null) {
   updateImmersionControls();
   updateBackToTopVisibility();
   semesterSelect.value = isHome ? "__home__" : portalData.id;
-  brandHome.setAttribute("aria-label", isHome ? "学习门户首页" : "返回学习门户首页");
+  brandHome.setAttribute("aria-label", portalData.desktop ? "返回 Note Portal 首页" : (isHome ? "学习门户首页" : "返回学习门户首页"));
   updateDocumentTitle(view, note);
 
   if (!isNote) {
@@ -1574,6 +1695,10 @@ function getActiveNote() {
 }
 
 function getUnitForNote(noteId) {
+  if (portalData.profile === "general") {
+    const note = flatNotes.find((item) => item.id === noteId);
+    return { code: note?.location || "Documents", name: note?.location || portalData.label };
+  }
   return portalData.units.find((unit) => unit.weeks.some((note) => note.id === noteId));
 }
 
@@ -1586,7 +1711,20 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function generalTreeHtml(nodes) {
+  return `<ul class="general-tree">${nodes.map((node) => node.id
+    ? `<li><button class="general-tree__note" type="button" data-note-id="${escapeHtml(node.id)}" ${node.id === state.activeNoteId ? 'aria-current="page"' : ""}>${escapeHtml(node.label)}</button></li>`
+    : `<li><details open><summary>${escapeHtml(node.label)}</summary>${generalTreeHtml(node.children || [])}</details></li>`).join("")}</ul>`;
+}
+
 function renderNavigation() {
+  if (portalData.desktop || portalData.profile === "general") {
+    courseNavigation.innerHTML = generalTreeHtml(portalData.tree || []);
+    courseNavigation.querySelectorAll("[data-note-id]").forEach((button) => {
+      button.addEventListener("click", () => openNote(button.dataset.noteId));
+    });
+    return;
+  }
   if (!portalData.units.length) {
     courseNavigation.innerHTML = '<p class="empty-week">No study units are configured yet.</p>';
     return;
@@ -1731,7 +1869,21 @@ async function renderNote(note, options = {}) {
   printTrigger.disabled = true;
   libraryLink.removeAttribute("aria-current");
 
-  viewRoot.innerHTML = `
+  viewRoot.innerHTML = portalData.desktop || portalData.profile === "general" ? `
+    <div class="reading-container">
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <button type="button" data-view="overview">${escapeHtml(portalData.label)}</button>
+        <span aria-hidden="true">/</span><span>${escapeHtml(note.location || "资料库最外层")}</span>
+      </nav>
+      <header class="note-header">
+        <div class="note-context"><span class="unit-label">Markdown document</span><span class="preview-label">Local-first</span></div>
+        <h1>${escapeHtml(note.title)}</h1>
+        <p class="note-subtitle">${escapeHtml(note.relativePath || note.location || "")}</p>
+        <div class="note-meta"><span>Updated ${escapeHtml(note.updated || "locally")}</span></div>
+      </header>
+      <article class="article markdown-article" id="markdown-article" aria-live="polite"><div class="note-loading" role="status"><p>正在载入文档…</p></div></article>
+      ${renderPagination(note)}
+    </div>` : `
     <div class="reading-container">
       <nav class="breadcrumbs" aria-label="Breadcrumb">
         <button type="button" data-view="overview">${escapeHtml(portalData.label)}</button>
@@ -1797,7 +1949,8 @@ async function renderNote(note, options = {}) {
 
     const article = viewRoot.querySelector("#markdown-article");
     article.innerHTML = renderMarkdownWithMath(markdown);
-    resolveArticleAssetUrls(article, note.path);
+    resolveArticleAssetUrls(article, note.assetBase || note.path, portalData.desktop ? portalData.generatedAt : "");
+    resolveArticleDocumentLinks(article, note);
     enhanceMarkdownArticle(article);
     printTrigger.disabled = false;
     buildTableOfContents();
@@ -1822,7 +1975,7 @@ async function renderNote(note, options = {}) {
     viewRoot.querySelector("#markdown-article").innerHTML = `
       <div class="callout callout--warning">
         <p class="callout__title">笔记载入失败</p>
-        <p>未能读取 <code>${escapeHtml(note.path)}</code>。请重新运行同步脚本后刷新页面。</p>
+        <p>未能读取 <code>${escapeHtml(note.relativePath || note.path)}</code>。请检查原文件后点击刷新。</p>
       </div>`;
     tocNavigation.innerHTML = "";
     console.error(error);
@@ -1841,6 +1994,7 @@ function restorePrintState() {
 }
 
 function recordPortalActivity(action, note = getActiveNote()) {
+  if (portalData.desktop) return;
   const payload = JSON.stringify({
     action,
     noteId: note?.id || "",
@@ -1873,7 +2027,7 @@ function printCurrentNote() {
     documentTitle: document.title,
     details,
   };
-  document.title = `${unit.code} · ${formatWeekLabel(note)} · ${note.title} — Study Portal`;
+  document.title = portalData.desktop ? `${note.title} — Note Portal` : `${unit.code} · ${formatWeekLabel(note)} · ${note.title} — Study Portal`;
   document.body.classList.add("is-printing");
   recordPortalActivity("print", note);
   window.print();
@@ -1891,7 +2045,7 @@ function printCurrentNote() {
  * 只改相对路径的媒体地址。带协议的、根路径的、#锚点一律原样保留；`<a href>` 也不动，
  * 改了会让「链到另一篇笔记」变成直接跳去原始 .md，而目录锚点也会跟着失效。
  */
-function resolveArticleAssetUrls(article, notePath) {
+function resolveArticleAssetUrls(article, notePath, assetVersion = "") {
   let noteUrl;
   try {
     noteUrl = new URL(notePath, window.location.href);
@@ -1907,7 +2061,9 @@ function resolveArticleAssetUrls(article, notePath) {
 
   const resolve = (value) => {
     try {
-      return new URL(value, noteUrl).href;
+      const url = new URL(value, noteUrl);
+      if (assetVersion && url.origin === window.location.origin) url.searchParams.set("v", assetVersion);
+      return url.href;
     } catch (error) {
       return null;
     }
@@ -1930,6 +2086,30 @@ function resolveArticleAssetUrls(article, notePath) {
       return [resolved, ...parts.slice(1)].join(" ");
     });
     element.setAttribute("srcset", rewritten.join(", "));
+  });
+}
+
+function resolveArticleDocumentLinks(article, note) {
+  if (!portalData.desktop || !note.assetBase) return;
+  const base = new URL(note.assetBase, window.location.href);
+  article.querySelectorAll("a[href]").forEach((link) => {
+    const raw = link.getAttribute("href");
+    if (!raw || !/\.md(?:[?#]|$)/i.test(raw)) return;
+    try {
+      const url = new URL(raw, base);
+      if (url.origin !== window.location.origin || !url.pathname.startsWith("/library/")) return;
+      const relativePath = decodeURIComponent(url.pathname.slice("/library/".length));
+      const target = flatNotes.find((item) => item.relativePath === relativePath);
+      if (!target) return;
+      const targetAnchor = decodeURIComponent(url.hash.slice(1));
+      link.href = `#note=${encodeURIComponent(target.id)}`;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        openNote(target.id, { targetAnchor });
+      });
+    } catch (error) {
+      /* Invalid Markdown links remain inert after URL sanitisation. */
+    }
   });
 }
 
@@ -2135,17 +2315,17 @@ function renderPagination(note) {
       <nav class="note-pagination" aria-label="上一篇和下一篇笔记">
         ${
           previous
-            ? `<button class="pagination-button" type="button" data-note-id="${previous.id}"><span>Previous note</span><strong>${previous.unitCode} · ${formatWeekLabel(previous)}</strong></button>`
+            ? `<button class="pagination-button" type="button" data-note-id="${previous.id}"><span>Previous note</span><strong>${escapeHtml(portalData.desktop || portalData.profile === "general" ? previous.title : `${previous.unitCode} · ${formatWeekLabel(previous)}`)}</strong></button>`
             : "<span></span>"
         }
         ${
           next
-            ? `<button class="pagination-button" type="button" data-note-id="${next.id}"><span>Next note</span><strong>${next.unitCode} · ${formatWeekLabel(next)}</strong></button>`
+            ? `<button class="pagination-button" type="button" data-note-id="${next.id}"><span>Next note</span><strong>${escapeHtml(portalData.desktop || portalData.profile === "general" ? next.title : `${next.unitCode} · ${formatWeekLabel(next)}`)}</strong></button>`
             : "<span></span>"
         }
       </nav>
-      <footer class="portal-attribution" aria-label="Study Portal copyright">
-        <span>Study Portal Framework</span>
+      <footer class="portal-attribution" aria-label="Portal copyright">
+        <span>${portalData.desktop ? "Note Portal" : "Study Portal Framework"}</span>
         <span aria-hidden="true">·</span>
         <span>Markdown reader</span>
         <span aria-hidden="true">·</span>
@@ -2155,6 +2335,10 @@ function renderPagination(note) {
 }
 
 function renderLibraryHome(options = {}) {
+  if (portalData.desktop || portalData.profile === "general") {
+    renderDesktopOverview(options);
+    return;
+  }
   saveScrollPosition();
   cleanupTocTracking();
   setViewMode("home");
@@ -2266,6 +2450,10 @@ function setOverviewUnitExpansion(unitCode, expanded) {
 }
 
 function renderOverview(options = {}) {
+  if (portalData.desktop || portalData.profile === "general") {
+    renderDesktopOverview(options);
+    return;
+  }
   saveScrollPosition();
   const scrollTop = options.preserveScroll ? window.scrollY : 0;
   cleanupTocTracking();
@@ -2402,6 +2590,30 @@ function renderOverview(options = {}) {
     });
   });
   window.scrollTo({ top: options.preserveScroll ? scrollTop : 0, behavior: "instant" });
+}
+
+function renderDesktopOverview(options = {}) {
+  saveScrollPosition();
+  cleanupTocTracking();
+  const scrollTop = options.preserveScroll ? window.scrollY : 0;
+  setViewMode("overview");
+  if (!options.preserveUrl && window.location.hash !== "#overview") window.location.hash = "overview";
+  libraryLink.setAttribute("aria-current", "page");
+  readingProgressBar.style.transform = "scaleX(0)";
+  renderNavigation();
+  closeMobileNavigation();
+  viewRoot.innerHTML = `<div class="overview-container general-overview">
+    <header class="overview-header"><h1>${escapeHtml(portalData.label)}</h1>
+      <p class="overview-header__meta">${flatNotes.length} documents · Last synced ${escapeHtml(formatSyncTime(portalData.generatedAt))}</p>
+      <p>${portalData.profile === "study" ? "按学期、Unit 与 Week 浏览 Markdown 主笔记。" : "按原有文件夹浏览 Markdown。"}外部工具保存文件后，目录与当前文档会自动更新。</p>
+    </header>
+    ${flatNotes.length ? `<section class="general-overview__tree" aria-label="文件夹与文档">${generalTreeHtml(portalData.tree || [])}</section>`
+      : '<p class="portal-empty-state" role="status">这个资料库还没有可阅读的 Markdown 文档。</p>'}
+  </div>`;
+  viewRoot.querySelectorAll("[data-note-id]").forEach((button) => {
+    button.addEventListener("click", () => openNote(button.dataset.noteId));
+  });
+  window.scrollTo({ top: scrollTop, behavior: "instant" });
 }
 
 function buildTableOfContents() {

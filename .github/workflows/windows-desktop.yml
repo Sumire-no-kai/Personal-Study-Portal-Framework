@@ -1,0 +1,100 @@
+name: Windows desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*-alpha.*"
+    paths:
+      - "servers/desktop-windows/**"
+      - "index.html"
+      - "app.js"
+      - "styles.css"
+      - "theme-init.js"
+      - "vendor/**"
+      - ".github/workflows/windows-desktop.yml"
+  pull_request:
+    paths:
+      - "servers/desktop-windows/**"
+      - "index.html"
+      - "app.js"
+      - "styles.css"
+      - "theme-init.js"
+      - "vendor/**"
+      - ".github/workflows/windows-desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: servers/desktop-windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: servers/desktop-windows/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: servers/desktop-windows/src-tauri
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Check reader and frontend
+        run: |
+          node --check ../../app.js
+          node --check ../../theme-init.js
+          npm run build
+      - name: Check Rust formatting and tests
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Build unsigned NSIS installer
+        run: npx tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: note-portal-windows-installer
+          path: servers/desktop-windows/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require tag on current master
+        run: |
+          git fetch --no-tags --depth=1 origin master
+          test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"
+      - uses: actions/download-artifact@v4
+        with:
+          name: note-portal-windows-installer
+          path: release
+      - name: Publish Windows alpha prerelease
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          installers=(./*-setup.exe)
+          test -f "${installers[0]}"
+          test "${#installers[@]}" -eq 1
+          sha256sum "${installers[0]}" > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" "${installers[0]}" SHA256SUMS.txt \
+            --verify-tag --prerelease --latest=false \
+            --title "Note Portal $GITHUB_REF_NAME (Windows alpha)" \
+            --notes "Windows 预发布版：下载 *-setup.exe 安装；GitHub 自动提供对应源码。首次启动请阅读并同意使用提示，再选择本机 Markdown 文件夹。服务仅监听本机，不内置 AI，也不会上传笔记。安装包未签名，可能触发 Windows SmartScreen 提示；尚未完成 Windows 实机与干净系统验证，请仅在你信任的电脑上试用。此版本不适合公网部署。" \
+            --generate-notes

@@ -1,0 +1,17 @@
+# JavaScript and frontend output
+/node_modules/
+/dist/
+
+# Rust and Tauri output
+/src-tauri/target/
+/src-tauri/gen/
+
+# Runtime-derived library state
+/runtime/
+/web/notes/
+/web/notes-manifest.js
+/web/portal.config.json
+
+# Local operating-system files
+.DS_Store
+Thumbs.db
