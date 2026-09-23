@@ -81,7 +81,7 @@ Semester → Unit → Week → 这一周的主笔记
 例如：
 
 ```text
-content/2026-semester-2/COMP5318/week-01/week-01-notes.md
+content/2026-semester-2/UNIT1001/week-01/week-01-notes.md
 ```
 
 文件夹叫 `week-01`，主笔记就叫 `week-01-notes.md`。两个名称必须对应，从而
@@ -94,10 +94,10 @@ content/2026-semester-2/COMP5318/week-01/week-01-notes.md
 3. 选择保存位置并填写资料库名称；
 4. 点击 **Create my first Week**；
 5. 填写 Semester，例如 `2026-semester-2`；
-6. 填写 Unit，例如 `COMP5318`；
+6. 填写 Unit，例如 `UNIT1001`；
 7. 选择 Week 数字 `1`；
 8. 确认预览路径为
-   `content/2026-semester-2/COMP5318/week-01/week-01-notes.md`；
+   `content/2026-semester-2/UNIT1001/week-01/week-01-notes.md`；
 9. 点击 **Create and show in folder**，用编辑器写入笔记并保存；
 10. 点击 **Open Portal**。
 
@@ -107,12 +107,12 @@ content/2026-semester-2/COMP5318/week-01/week-01-notes.md
 My Study Notes/                         # 应用中选择这一层
 ├── content/
 │   └── 2026-semester-2/
-│       ├── COMP5310/
+│       ├── UNIT1002/
 │       │   ├── week-01/
 │       │   │   └── week-01-notes.md
 │       │   └── week-02/
 │       │       └── week-02-notes.md
-│       └── COMP5318/
+│       └── UNIT1001/
 │           └── week-01/
 │               └── week-01-notes.md
 └── inbox/
@@ -150,13 +150,13 @@ weeks-01-03/weeks-01-03-notes.md
 旧网页逻辑上显示 Semester → Unit → Week，但文件通常是：
 
 ```text
-notes/comp5310/week-1.md
+notes/unit1002/week-1.md
 ```
 
 新 Study 资料库显式保存完整层级：
 
 ```text
-content/2026-semester-2/COMP5310/week-01/week-01-notes.md
+content/2026-semester-2/UNIT1002/week-01/week-01-notes.md
 ```
 
 第一次迁移请复制旧文件，给复制品建立标准位置和名称，确认新网页显示正确后再
@@ -206,7 +206,7 @@ Markdown 中使用相对路径：
 
 ```text
 请只更新这篇文件：
-My Study Notes/content/2026-semester-2/COMP5318/week-03/week-03-notes.md
+My Study Notes/content/2026-semester-2/UNIT1001/week-03/week-03-notes.md
 ```
 
 保存后 Note Portal 会自动刷新。它不提供 AI 服务，也不会主动上传笔记。

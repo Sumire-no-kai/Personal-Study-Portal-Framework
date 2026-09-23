@@ -357,7 +357,7 @@ A normal week key is `week-NN`; a combined range is `weeks-NN-NN`. The parent
 directory and primary-note basename must match. For example:
 
 ```text
-content/2026-semester-2/COMP5318/week-01/week-01-notes.md
+content/2026-semester-2/UNIT1001/week-01/week-01-notes.md
 ```
 
 Only that matching primary note becomes the Week entry. Other Markdown in the

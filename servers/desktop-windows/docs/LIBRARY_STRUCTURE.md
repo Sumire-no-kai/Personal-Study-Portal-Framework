@@ -64,7 +64,7 @@ My Study Notes/                          # 应用中选择这一层
 ├── content/
 │   └── 2026-semester-2/                 # Semester
 │       ├── _index.md                    # 可选的学期说明
-│       └── COMP5318/                    # Unit
+│       └── UNIT1001/                    # Unit
 │           ├── _index.md                # 可选的 Unit 说明
 │           ├── week-01/                 # Week
 │           │   ├── week-01-notes.md     # 本周唯一主笔记
@@ -251,7 +251,7 @@ projects/roadmap.md
 Study 应使用完整标准路径：
 
 ```text
-content/2026-semester-2/COMP5318/week-03/week-03-notes.md
+content/2026-semester-2/UNIT1001/week-03/week-03-notes.md
 ```
 
 推荐先写临时文件，关闭后再原子重命名为最终 `.md`。修改现有文件时保留显式
@@ -274,7 +274,7 @@ frontmatter `id`。Note Portal 忽略临时文件，并在最终文档稳定后�
 例如：
 
 ```text
-未识别：content/2026-semester-2/COMP5318/week-01/summary.md
+未识别：content/2026-semester-2/UNIT1001/week-01/summary.md
 原因：Study 模式下，Week 1 主笔记必须与文件夹名称匹配。
 建议名称：week-01-notes.md
 ```
