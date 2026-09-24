@@ -16,6 +16,10 @@
 !.github/
 !.github/workflows/
 !.github/workflows/windows-desktop.yml
+!.github/ISSUE_TEMPLATE/
+!.github/ISSUE_TEMPLATE/bug_report.yml
+!.github/ISSUE_TEMPLATE/feature_request.yml
+!.github/ISSUE_TEMPLATE/config.yml
 !servers/
 !servers/desktop-windows/
 !servers/desktop-windows/.gitignore

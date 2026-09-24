@@ -103,10 +103,11 @@ renames or deletes your Markdown files.
 
 ### Report a problem
 
-Open an [issue](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues) with your Windows version, processor type, the
-version shown in **About**, and the steps to reproduce. Do not include note
-contents, private file paths, reader links with session tokens, or course or
-assessment material.
+Choose **Bug report** or **Feature request or feedback** on the
+[new issue page](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/new/choose).
+The bug form asks for the version shown in **About**, your Windows version,
+processor type and steps to reproduce. Do not include note contents, private
+file paths, reader links with session tokens, or course or assessment material.
 
 ### For contributors
 

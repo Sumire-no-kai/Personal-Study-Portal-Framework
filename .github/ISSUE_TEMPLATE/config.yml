@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用指南 / User guide
+    url: https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/blob/master/servers/desktop-windows/docs/GETTING_STARTED.zh-CN.md
+    about: 安装、选择资料库与日常使用（英文版见 README）/ Installation, library setup and daily use; the README links the English guide

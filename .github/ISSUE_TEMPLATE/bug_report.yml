@@ -1,0 +1,76 @@
+name: 问题反馈 / Bug report
+description: 应用出错、表现异常或文档有误 / Something is broken, behaves unexpectedly or is documented wrongly
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请**不要**填写笔记正文、私人文件路径、带令牌的阅读页链接、课程或评估资料；截图请先遮挡这些内容。
+        Thanks for reporting! Please do **not** include note contents, private file paths, reader links with session tokens, or course or assessment material. Redact screenshots first.
+  - type: input
+    id: app-version
+    attributes:
+      label: 应用版本 / App version
+      description: 在应用的“关于”中查看 / Shown in the app's About dialog
+      placeholder: 0.1.1-alpha.1
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: 系统版本 / Operating system
+      description: Windows 可按 Win+R 输入 winver 查看 / On Windows, press Win+R and run winver
+      placeholder: Windows 11 24H2 (26100)
+    validations:
+      required: true
+  - type: dropdown
+    id: processor
+    attributes:
+      label: 处理器类型 / Processor
+      options:
+        - x64 (Intel / AMD)
+        - ARM64 (Windows on ARM)
+        - 不确定 / Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: library-type
+    attributes:
+      label: 资料库类型 / Library type
+      options:
+        - General
+        - Study
+        - 不适用 / Not applicable
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么 / What happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望的结果 / Expected behaviour
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息 / Additional context
+      description: 错误提示原文、已遮挡的截图等 / Exact error text, redacted screenshots and similar
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认 / Privacy
+      options:
+        - label: 我没有填写笔记内容、私人路径、带令牌的链接或课程、评估资料 / I have not included note contents, private paths, links with session tokens, or course or assessment material
+          required: true
