@@ -385,8 +385,7 @@ async function showNotice(): Promise<void> {
     if (!noticeRead || !app.querySelector<HTMLInputElement>("#notice-check")?.checked) return;
     await invoke("accept_notice");
     status = await invoke<Status>("get_status");
-    if (status.guideCompleted) renderSetup();
-    else showFirstRunGuide();
+    renderAfterStatus();
   }));
 }
 
