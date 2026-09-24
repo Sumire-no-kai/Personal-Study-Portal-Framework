@@ -30,7 +30,7 @@ type Status = {
 };
 type Preview = { documentCount: number; diagnostics: Diagnostic[]; tree: TreeNode[] };
 type NotePreview = { relativePath: string; exists: boolean };
-type SettingsReset = { status: Status; backupPath: string };
+type SettingsReset = { status: Status; backupPath: string; warning: string | null };
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const dialog = document.querySelector<HTMLDialogElement>("#dialog")!;
@@ -177,6 +177,7 @@ const backendTranslations: Record<string, string> = {
   "请检查图片文件，保存或同步完成后再刷新。": "Check the image, then refresh after saving or syncing finishes.",
   "请检查文件编码和大小，保存完成后再刷新。": "Check the file encoding and size, then refresh after saving finishes.",
   "资料库的 Markdown 总量超过 64 MiB；请分开选择较小的资料库。": "The library contains more than 64 MiB of Markdown. Choose a smaller library.",
+  "系统登录启动项未能同步；请在“设置与条款”中把登录启动选项重新切换一次。": "The system login-startup item could not be updated. Toggle the login-startup option once in Settings & terms.",
 };
 
 function backendText(value: string): string {
@@ -268,13 +269,17 @@ function renderAfterStatus(): void {
   else renderStatus();
 }
 
+function recoveryWarning(warning: string | null): string {
+  return warning ? `<p class="message" role="alert">${escapeHtml(backendText(warning))}</p>` : "";
+}
+
 function renderSettingsRecovery(): void {
   app.innerHTML = `${header(tr("本机设置需要恢复", "Local settings need recovery"))}<main class="page notice-page"><h1>${tr("设置文件无法读取", "Settings file could not be loaded")}</h1><p>${tr("你的笔记文件不会被删除或修改。可以先尝试恢复上一份设置；如果没有可用备份，可以把损坏的设置另存一份，再从头设置应用。", "Your notes will not be deleted or changed. First try the previous settings backup. If none is usable, preserve the damaged settings and set up the app again.")}</p><p class="message" role="alert">${escapeHtml(backendText(status.error || ""))}</p><p class="path-preview">${escapeHtml(status.settingsRecoveryPath || "")}</p><div class="button-row"><button class="button" id="restore-settings" type="button" ${status.settingsBackupAvailable ? "" : "disabled"}>${tr("恢复上一份设置", "Restore previous settings")}</button><button class="button primary" id="reset-settings" type="button">${tr("备份后重置设置", "Back up and reset settings")}</button></div><p id="message" class="message" role="alert" hidden></p></main>`;
   wireLanguagePicker();
   app.querySelector("#restore-settings")?.addEventListener("click", () => void action(async () => {
     const result = await invoke<SettingsReset>("restore_settings_backup");
     status = result.status;
-    openDialog(tr("设置已恢复", "Settings restored"), `<p>${tr("原损坏设置已另外保存在：", "The damaged settings were preserved at:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p><button class="button primary" id="continue-after-restore" type="button">${tr("继续", "Continue")}</button>`);
+    openDialog(tr("设置已恢复", "Settings restored"), `<p>${tr("原损坏设置已另外保存在：", "The damaged settings were preserved at:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p>${recoveryWarning(result.warning)}<button class="button primary" id="continue-after-restore" type="button">${tr("继续", "Continue")}</button>`);
     dialog.querySelector("#continue-after-restore")?.addEventListener("click", () => { dialog.close(); renderAfterStatus(); });
   }));
   app.querySelector("#reset-settings")?.addEventListener("click", () => {
@@ -283,7 +288,7 @@ function renderSettingsRecovery(): void {
     dialog.querySelector("#confirm-reset")?.addEventListener("click", () => void action(async () => {
       const result = await invoke<SettingsReset>("reset_corrupt_settings");
       status = result.status;
-      openDialog(tr("设置已重置", "Settings reset"), `<p>${tr("损坏设置已备份到：", "Damaged settings were backed up to:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p><button class="button primary" id="continue-after-reset" type="button">${tr("继续首次设置", "Continue setup")}</button>`);
+      openDialog(tr("设置已重置", "Settings reset"), `<p>${tr("损坏设置已备份到：", "Damaged settings were backed up to:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p>${recoveryWarning(result.warning)}<button class="button primary" id="continue-after-reset" type="button">${tr("继续首次设置", "Continue setup")}</button>`);
       dialog.querySelector("#continue-after-reset")?.addEventListener("click", () => { dialog.close(); renderAfterStatus(); });
     }));
   });

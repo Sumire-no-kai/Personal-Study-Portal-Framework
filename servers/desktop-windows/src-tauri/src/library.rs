@@ -429,6 +429,11 @@ pub fn general_folders(root: &Path) -> Result<Vec<String>, String> {
         if !entry.file_type().is_dir() {
             continue;
         }
+        // The scanner never lists Markdown inside asset folders, so a note created there would vanish.
+        if entry.file_name() == "_assets" {
+            entries.skip_current_dir();
+            continue;
+        }
         let relative = entry
             .path()
             .strip_prefix(&root)
@@ -1103,6 +1108,13 @@ mod tests {
             general_folders(root.path()).unwrap(),
             vec!["drafts", "empty", "empty/nested"]
         );
+    }
+
+    #[test]
+    fn general_folder_picker_skips_asset_folders_hidden_from_navigation() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("topic/_assets/nested")).unwrap();
+        assert_eq!(general_folders(root.path()).unwrap(), vec!["topic"]);
     }
 
     #[test]
