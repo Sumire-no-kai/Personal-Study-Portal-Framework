@@ -1,0 +1,33 @@
+name: 功能建议与反馈 / Feature request or feedback
+description: 提出新功能、改进建议或使用体验 / Suggest a feature or share how the app works for you
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        欢迎提出建议！请**不要**填写笔记正文、私人文件路径、课程或评估资料。
+        Suggestions are welcome! Please do **not** include note contents, private file paths, or course or assessment material.
+  - type: textarea
+    id: idea
+    attributes:
+      label: 建议或反馈 / Suggestion or feedback
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: 使用场景 / How it would help
+      description: 你想完成什么事，现在遇到了什么不便 / What you want to do and what gets in the way today
+  - type: input
+    id: app-version
+    attributes:
+      label: 应用版本（可选）/ App version (optional)
+      placeholder: 0.1.1-alpha.1
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认 / Privacy
+      options:
+        - label: 我没有填写笔记内容、私人路径或课程、评估资料 / I have not included note contents, private paths, or course or assessment material
+          required: true
