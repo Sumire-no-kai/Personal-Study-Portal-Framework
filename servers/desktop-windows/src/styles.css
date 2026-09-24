@@ -77,6 +77,7 @@ h2 { font-size: 15px; margin-bottom: 0; }
 .state-pill { white-space: nowrap; font-size: 12px; font-weight: 750; border-radius: 30px; padding: 5px 8px; margin-top: 4px; }
 .state-pill.running { background: #e5f3ec; color: #14684e; }
 .state-pill.degraded { background: #fff0d8; color: #885914; }
+.state-pill.starting { background: #e8f1f8; color: #165e91; }
 .state-pill.stopped { background: #eef0ef; color: #5d6b65; }
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #e0e8e3; border-bottom: 1px solid #e0e8e3; margin: 22px 0 16px; }
 .stat-grid div { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 12px 3px; border-right: 1px solid #e0e8e3; }
