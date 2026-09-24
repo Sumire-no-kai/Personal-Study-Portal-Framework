@@ -781,7 +781,9 @@ mod tests {
             .await
             .unwrap();
         assert!(expired.starts_with("HTTP/1.1 403"));
-        assert!(expired.to_ascii_lowercase().contains("content-type: text/html; charset=utf-8"));
+        assert!(expired
+            .to_ascii_lowercase()
+            .contains("content-type: text/html; charset=utf-8"));
         assert!(expired.contains("default-src 'none'"));
         assert!(expired.contains("Reading session expired"));
         assert!(expired.contains("Open reader"));
