@@ -173,14 +173,16 @@ fn parse_frontmatter(content: &str) -> Result<(Frontmatter, &str), String> {
     if !content.starts_with("---\n") && !content.starts_with("---\r\n") {
         return Ok((Frontmatter::default(), content));
     }
-    let mut lines = content.lines();
-    lines.next();
     let mut yaml = String::new();
-    let mut consumed = content.find('\n').unwrap_or(content.len()) + 1;
+    let mut consumed = 0;
     let mut closed = false;
-    for line in lines {
-        consumed += line.len() + 1;
-        if line.trim_end_matches('\r') == "---" {
+    for (index, segment) in content.split_inclusive('\n').enumerate() {
+        consumed += segment.len();
+        if index == 0 {
+            continue;
+        }
+        let line = segment.trim_end_matches(['\r', '\n']);
+        if line == "---" {
             closed = true;
             break;
         }
@@ -406,6 +408,15 @@ fn diagnostic(path: &str, reason: &str, suggestion: &str) -> Diagnostic {
 }
 
 pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, String> {
+    scan_with_previous(root, profile, sequence, None)
+}
+
+pub fn scan_with_previous(
+    root: &Path,
+    profile: Profile,
+    sequence: u64,
+    previous: Option<&Snapshot>,
+) -> Result<Snapshot, String> {
     if !root.is_dir() {
         return Err("资料库文件夹不存在或无法访问；请选择可读取的文件夹。".into());
     }
@@ -423,7 +434,28 @@ pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, St
     let mut entries = WalkDir::new(&root).follow_links(false).into_iter();
 
     while let Some(entry) = entries.next() {
-        let entry = entry.map_err(|_| "扫描资料库时无法读取一个文件夹；请检查权限。")?;
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                let Some(path) = error.path() else {
+                    return Err("扫描资料库时无法读取一个文件夹；请检查权限。".into());
+                };
+                if path == root {
+                    return Err("无法读取资料库文件夹；请检查访问权限。".into());
+                }
+                let relative = path
+                    .strip_prefix(&root)
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                diagnostics.push(diagnostic(
+                    &relative,
+                    "无法读取文件或文件夹。",
+                    "请检查访问权限，保存或同步完成后再刷新。",
+                ));
+                continue;
+            }
+        };
         if entry.depth() == 0 {
             continue;
         }
@@ -434,13 +466,22 @@ pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, St
             }
             continue;
         }
-        let relative = entry
+        let relative_path = entry
             .path()
             .strip_prefix(&root)
-            .map_err(|_| "资料库路径异常。")?
-            .to_str()
-            .ok_or("路径包含无法识别的字符。")?
-            .replace('\\', "/");
+            .map_err(|_| "资料库路径异常。")?;
+        let Some(relative) = relative_path.to_str() else {
+            diagnostics.push(diagnostic(
+                &relative_path.to_string_lossy().replace('\\', "/"),
+                "路径包含无法识别的字符。",
+                "请在文件管理器中手动改名。",
+            ));
+            if entry.file_type().is_dir() {
+                entries.skip_current_dir();
+            }
+            continue;
+        };
+        let relative = relative.replace('\\', "/");
         if !valid_relative_path(&relative) {
             diagnostics.push(diagnostic(
                 &relative,
@@ -476,8 +517,17 @@ pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, St
             .iter()
             .any(|allowed| extension.eq_ignore_ascii_case(allowed))
         {
-            let bytes = read_stable_bytes(entry.path())
-                .map_err(|reason| format!("{relative}：{reason}"))?;
+            let bytes = match read_stable_bytes(entry.path()) {
+                Ok(bytes) => bytes,
+                Err(reason) => {
+                    diagnostics.push(diagnostic(
+                        &relative,
+                        &reason,
+                        "请检查图片文件，保存或同步完成后再刷新。",
+                    ));
+                    continue;
+                }
+            };
             let hash = blake3::hash(&bytes).to_hex().to_string();
             signature_parts.insert(relative.clone(), hash.clone());
             asset_hashes.insert(relative.clone(), hash);
@@ -508,14 +558,32 @@ pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, St
                 ));
                 continue;
             }
-            let content =
-                read_stable(entry.path()).map_err(|reason| format!("{relative}：{reason}"))?;
+            let content = match read_stable(entry.path()) {
+                Ok(content) => content,
+                Err(reason) => {
+                    diagnostics.push(diagnostic(
+                        &relative,
+                        &reason,
+                        "请检查文件编码和大小，保存完成后再刷新。",
+                    ));
+                    continue;
+                }
+            };
             scanned_markdown_bytes = scanned_markdown_bytes.saturating_add(content.len() as u64);
             if scanned_markdown_bytes > MAX_LIBRARY_MARKDOWN_BYTES {
                 return Err("资料库的 Markdown 总量超过 64 MiB；请分开选择较小的资料库。".into());
             }
-            let (meta, _) =
-                parse_frontmatter(&content).map_err(|reason| format!("{relative}：{reason}"))?;
+            let (meta, _) = match parse_frontmatter(&content) {
+                Ok(parsed) => parsed,
+                Err(reason) => {
+                    diagnostics.push(diagnostic(
+                        &relative,
+                        &reason,
+                        "请在编辑器中修正后点击立即刷新。",
+                    ));
+                    continue;
+                }
+            };
             let parent = parts[..parts.len() - 1].join("/");
             folder_metadata.insert(parent, meta);
             signature_parts.insert(
@@ -597,8 +665,17 @@ pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, St
             }
         };
 
-        let content =
-            read_stable(entry.path()).map_err(|reason| format!("{relative}：{reason}"))?;
+        let content = match read_stable(entry.path()) {
+            Ok(content) => content,
+            Err(reason) => {
+                diagnostics.push(diagnostic(
+                    &relative,
+                    &reason,
+                    "请检查文件编码和大小，保存完成后再刷新。",
+                ));
+                continue;
+            }
+        };
         scanned_markdown_bytes = scanned_markdown_bytes.saturating_add(content.len() as u64);
         if scanned_markdown_bytes > MAX_LIBRARY_MARKDOWN_BYTES {
             return Err("资料库的 Markdown 总量超过 64 MiB；请分开选择较小的资料库。".into());
@@ -672,6 +749,46 @@ pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, St
             explicit_id,
         };
         documents.insert(id, (document, tree_path));
+    }
+
+    if let Some(previous) = previous {
+        for document in previous.documents.values() {
+            if !diagnostics.iter().any(|item| {
+                document.relative_path == item.path
+                    || document
+                        .relative_path
+                        .strip_prefix(item.path.as_str())
+                        .is_some_and(|suffix| suffix.starts_with('/'))
+            }) {
+                continue;
+            }
+            if documents
+                .values()
+                .any(|(next, _)| next.relative_path == document.relative_path)
+            {
+                continue;
+            }
+            if !ids.insert(document.id.clone()) {
+                return Err(format!(
+                    "资料库存在重复的文档 id：{}。请修改其中一篇的 frontmatter。",
+                    document.id
+                ));
+            }
+            let parts: Vec<&str> = document.relative_path.split('/').collect();
+            let tree_path = if profile == Profile::Study && parts.first() == Some(&"content") {
+                parts[1..parts.len() - 1]
+                    .iter()
+                    .map(|s| (*s).to_owned())
+                    .collect()
+            } else {
+                parts[..parts.len() - 1]
+                    .iter()
+                    .map(|s| (*s).to_owned())
+                    .collect()
+            };
+            signature_parts.insert(document.relative_path.clone(), document.hash.clone());
+            documents.insert(document.id.clone(), (document.clone(), tree_path));
+        }
     }
 
     let mut tree = Vec::new();
@@ -913,14 +1030,63 @@ mod tests {
     }
 
     #[test]
-    fn oversized_markdown_is_rejected_before_loading() {
+    fn frontmatter_body_starts_after_exact_lf_or_crlf_delimiter() {
+        for line_ending in ["\n", "\r\n"] {
+            for count in 0..=10 {
+                let mut content = format!("---{line_ending}");
+                for index in 0..count {
+                    content.push_str(&format!("field{index}: value{line_ending}"));
+                }
+                content.push_str(&format!("---{line_ending}# Heading{line_ending}"));
+                let (_, body) = parse_frontmatter(&content).unwrap();
+                assert_eq!(body, format!("# Heading{line_ending}"));
+            }
+        }
+        let (_, body) =
+            parse_frontmatter("\u{feff}---\r\ntitle: Sample\r\n---\r\n# Heading\r\n").unwrap();
+        assert_eq!(body, "# Heading\r\n");
+    }
+
+    #[test]
+    fn bad_files_are_diagnostic_without_hiding_valid_notes() {
         let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("good.md"), "# Good").unwrap();
         fs::File::create(root.path().join("too-large.md"))
             .unwrap()
             .set_len(MAX_MARKDOWN_BYTES + 1)
             .unwrap();
-        let error = scan(root.path(), Profile::General, 1).err().unwrap();
-        assert!(error.contains("8 MiB"));
+        fs::write(root.path().join("legacy.md"), b"\xff\xfe").unwrap();
+        fs::File::create(root.path().join("too-large.png"))
+            .unwrap()
+            .set_len(MAX_IMAGE_BYTES + 1)
+            .unwrap();
+        fs::write(root.path().join("_index.md"), "---\ntitle: [invalid\n---\n").unwrap();
+        let snapshot = scan(root.path(), Profile::General, 1).unwrap();
+        assert_eq!(snapshot.documents.len(), 1);
+        for path in ["too-large.md", "legacy.md", "too-large.png", "_index.md"] {
+            assert!(snapshot.diagnostics.iter().any(|item| item.path == path));
+        }
+    }
+
+    #[test]
+    fn temporarily_invalid_note_keeps_previous_body_with_other_updates() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("stable.md"), "# Original").unwrap();
+        fs::write(root.path().join("other.md"), "# Before").unwrap();
+        let previous = scan(root.path(), Profile::General, 1).unwrap();
+        fs::write(root.path().join("stable.md"), "---\ntitle: Broken").unwrap();
+        fs::write(root.path().join("other.md"), "# After").unwrap();
+        let next = scan_with_previous(root.path(), Profile::General, 2, Some(&previous)).unwrap();
+        assert_eq!(next.documents.len(), 2);
+        assert!(next
+            .documents
+            .values()
+            .any(|doc| doc.body.as_ref() == "# Original"));
+        assert!(next
+            .documents
+            .values()
+            .any(|doc| doc.body.as_ref() == "# After"));
+        assert!(next.diagnostics.iter().any(|item| item.path == "stable.md"));
     }
 
     #[test]

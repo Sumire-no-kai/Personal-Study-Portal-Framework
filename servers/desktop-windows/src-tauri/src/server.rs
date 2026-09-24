@@ -27,10 +27,13 @@ use serde::Deserialize;
 use serde_json::json;
 use tokio::{
     net::TcpListener,
-    sync::{broadcast, oneshot, RwLock},
+    sync::{broadcast, oneshot, watch, RwLock},
     task::JoinHandle,
 };
-use tokio_stream::{wrappers::BroadcastStream, StreamExt};
+use tokio_stream::{
+    wrappers::{BroadcastStream, WatchStream},
+    StreamExt,
+};
 
 use crate::library::{self, Profile, Snapshot};
 
@@ -65,6 +68,7 @@ struct WebState {
     refresh_lock: Arc<tokio::sync::Mutex<()>>,
     last_error: Arc<RwLock<Option<String>>>,
     branding: Arc<RwLock<Branding>>,
+    stopping: watch::Receiver<bool>,
 }
 
 pub struct Service {
@@ -74,6 +78,7 @@ pub struct Service {
     pub last_error: Arc<RwLock<Option<String>>>,
     pub branding: Arc<RwLock<Branding>>,
     shutdown: Option<oneshot::Sender<()>>,
+    stopping: watch::Sender<bool>,
     watcher: JoinHandle<()>,
 }
 
@@ -87,6 +92,7 @@ impl Service {
 
     pub fn stop(mut self) {
         self.watcher.abort();
+        let _ = self.stopping.send(true);
         if let Some(shutdown) = self.shutdown.take() {
             let _ = shutdown.send(());
         }
@@ -390,17 +396,24 @@ async fn events(
     State(state): State<WebState>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let release = state.snapshot.read().await.release_id.clone();
-    let initial = tokio_stream::once(Ok(Event::default()
+    let initial = tokio_stream::once(Some(Ok(Event::default()
         .event("release")
-        .data(json!({"releaseId": release}).to_string())));
+        .data(json!({"releaseId": release}).to_string()))));
     let updates = BroadcastStream::new(state.events.subscribe()).filter_map(|item| {
         item.ok().map(|release_id| {
-            Ok(Event::default()
+            Some(Ok(Event::default()
                 .event("release")
-                .data(json!({"releaseId": release_id}).to_string()))
+                .data(json!({"releaseId": release_id}).to_string())))
         })
     });
-    Sse::new(initial.chain(updates)).keep_alive(KeepAlive::default())
+    let stopping =
+        WatchStream::new(state.stopping.clone()).filter_map(|stopped| stopped.then_some(None));
+    let stream = initial
+        .chain(updates)
+        .merge(stopping)
+        .take_while(Option::is_some)
+        .map(Option::unwrap);
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 pub async fn refresh(state: &WebHandle) -> Result<bool, String> {
@@ -408,26 +421,16 @@ pub async fn refresh(state: &WebHandle) -> Result<bool, String> {
     let _refresh = current.refresh_lock.lock().await;
     let root = current.root.clone();
     let profile = current.profile;
+    let previous = current.snapshot.read().await.clone();
     let sequence = current.sequence.fetch_add(1, Ordering::SeqCst) + 1;
-    let staged = tokio::task::spawn_blocking(move || library::scan(&root, profile, sequence))
-        .await
-        .map_err(|_| "扫描任务意外中断；当前阅读内容保持不变。".to_owned())?;
+    let staged = tokio::task::spawn_blocking(move || {
+        library::scan_with_previous(&root, profile, sequence, Some(&previous))
+    })
+    .await
+    .map_err(|_| "扫描任务意外中断；当前阅读内容保持不变。".to_owned())?;
     match staged {
         Ok(mut snapshot) => {
             let mut active = current.snapshot.write().await;
-            if let Some(invalid) = snapshot.diagnostics.iter().find(|item| {
-                active
-                    .documents
-                    .values()
-                    .any(|doc| doc.relative_path == item.path)
-            }) {
-                let error = format!(
-                    "{}：上次有效版本仍在使用中；请修正文件后刷新。",
-                    invalid.path
-                );
-                *current.last_error.write().await = Some(error.clone());
-                return Err(error);
-            }
             if active.signature == snapshot.signature {
                 *current.last_error.write().await = None;
                 return Ok(false);
@@ -449,7 +452,11 @@ pub async fn refresh(state: &WebHandle) -> Result<bool, String> {
 #[derive(Clone)]
 pub struct WebHandle(WebState);
 
-fn relevant_event(root: &std::path::Path, event: &Result<NotifyEvent, notify::Error>) -> bool {
+fn relevant_event(
+    root: &std::path::Path,
+    event: &Result<NotifyEvent, notify::Error>,
+    snapshot: Option<&Snapshot>,
+) -> bool {
     let Ok(event) = event else {
         // A watcher overflow or lost-watch notification warrants one full rescan.
         return true;
@@ -478,7 +485,24 @@ fn relevant_event(root: &std::path::Path, event: &Result<NotifyEvent, notify::Er
         if ignored {
             return false;
         }
-        let Some(extension) = relative.extension().and_then(|ext| ext.to_str()) else {
+        if path.is_dir() {
+            return true;
+        }
+        let relative = relative.to_string_lossy().replace('\\', "/");
+        if snapshot.is_some_and(|snapshot| {
+            let prefix = format!("{relative}/");
+            snapshot
+                .documents
+                .values()
+                .any(|doc| doc.relative_path.starts_with(&prefix))
+                || snapshot
+                    .asset_hashes
+                    .keys()
+                    .any(|asset| asset.starts_with(&prefix))
+        }) {
+            return true;
+        }
+        let Some(extension) = path.extension().and_then(|ext| ext.to_str()) else {
             return true;
         };
         ["md", "gif", "jpeg", "jpg", "png", "svg", "webp"]
@@ -491,6 +515,7 @@ pub async fn start(
     root: PathBuf,
     profile: Profile,
     branding: Branding,
+    preferred_port: Option<u16>,
 ) -> Result<(Service, WebHandle), String> {
     let root = root.canonicalize().map_err(|_| "无法打开资料库文件夹。")?;
     let snapshot = tokio::task::spawn_blocking({
@@ -499,15 +524,24 @@ pub async fn start(
     })
     .await
     .map_err(|_| "资料库扫描任务意外中断。")??;
-    let listener = TcpListener::bind("127.0.0.1:0")
-        .await
-        .map_err(|_| "无法启动本地服务；请检查系统网络权限。")?;
+    let listener = match preferred_port.filter(|port| *port != 0) {
+        Some(port) => match TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await {
+            Ok(listener) => listener,
+            Err(_) => TcpListener::bind("127.0.0.1:0")
+                .await
+                .map_err(|_| "无法启动本地服务；请检查系统网络权限。")?,
+        },
+        None => TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(|_| "无法启动本地服务；请检查系统网络权限。")?,
+    };
     let address: SocketAddr = listener
         .local_addr()
         .map_err(|_| "无法确定本地服务端口。")?;
     let access_token = new_session_token()?;
     let (event_tx, _) = broadcast::channel(32);
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let (stopping_tx, stopping_rx) = watch::channel(false);
     let state = WebState {
         root: root.clone(),
         profile,
@@ -519,6 +553,7 @@ pub async fn start(
         refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         last_error: Arc::new(RwLock::new(None)),
         branding: Arc::new(RwLock::new(branding)),
+        stopping: stopping_rx,
     };
     let router = Router::new()
         .route("/", get(index))
@@ -555,10 +590,11 @@ pub async fn start(
     let watcher_task = tokio::spawn(async move {
         let _watcher = watcher;
         while let Some(first) = rx.recv().await {
-            let mut should_refresh = relevant_event(&root, &first);
+            let snapshot = watcher_handle.0.snapshot.read().await.clone();
+            let mut should_refresh = relevant_event(&root, &first, Some(&snapshot));
             tokio::time::sleep(std::time::Duration::from_millis(300)).await;
             while let Ok(event) = rx.try_recv() {
-                should_refresh |= relevant_event(&root, &event);
+                should_refresh |= relevant_event(&root, &event, Some(&snapshot));
             }
             if should_refresh {
                 let _ = refresh(&watcher_handle).await;
@@ -572,6 +608,7 @@ pub async fn start(
         last_error: state.last_error.clone(),
         branding: state.branding.clone(),
         shutdown: Some(shutdown_tx),
+        stopping: stopping_tx,
         watcher: watcher_task,
     };
     Ok((service, handle))
@@ -619,6 +656,7 @@ mod tests {
                 color: "#14684e",
                 logo: None,
             })),
+            stopping: watch::channel(false).1,
         })
     }
 
@@ -627,16 +665,36 @@ mod tests {
         let root = PathBuf::from("library");
         let access =
             NotifyEvent::new(EventKind::Access(AccessKind::Any)).add_path(root.join("note.md"));
-        assert!(!relevant_event(&root, &Ok(access)));
+        assert!(!relevant_event(&root, &Ok(access), None));
         let temporary = NotifyEvent::new(EventKind::Modify(ModifyKind::Data(DataChange::Content)))
             .add_path(root.join("note.md.part"));
-        assert!(!relevant_event(&root, &Ok(temporary)));
+        assert!(!relevant_event(&root, &Ok(temporary), None));
         let renamed = NotifyEvent::new(EventKind::Modify(ModifyKind::Name(
             notify::event::RenameMode::Both,
         )))
         .add_path(root.join("note.md.part"))
         .add_path(root.join("note.md"));
-        assert!(relevant_event(&root, &Ok(renamed)));
+        assert!(relevant_event(&root, &Ok(renamed), None));
+    }
+
+    #[test]
+    fn watcher_refreshes_dotted_folder_creation_and_removal() {
+        let root = tempfile::tempdir().unwrap();
+        let dotted = root.path().join("Node.js notes");
+        fs::create_dir(&dotted).unwrap();
+        fs::write(dotted.join("intro.md"), "# Intro").unwrap();
+        let snapshot = library::scan(root.path(), Profile::General, 1).unwrap();
+        let created = NotifyEvent::new(EventKind::Any).add_path(dotted.clone());
+        assert!(relevant_event(root.path(), &Ok(created), Some(&snapshot)));
+        fs::remove_dir_all(&dotted).unwrap();
+        let removed = NotifyEvent::new(EventKind::Any).add_path(dotted);
+        assert!(relevant_event(root.path(), &Ok(removed), Some(&snapshot)));
+        let unrelated = NotifyEvent::new(EventKind::Any).add_path(root.path().join("old.pdf"));
+        assert!(!relevant_event(
+            root.path(),
+            &Ok(unrelated),
+            Some(&snapshot)
+        ));
     }
 
     #[test]
@@ -685,6 +743,7 @@ mod tests {
                 color: "#14684e",
                 logo: None,
             },
+            None,
         )
         .await
         .unwrap();
@@ -718,6 +777,92 @@ mod tests {
         assert!(authenticated.starts_with("HTTP/1.1 200"));
         assert!(authenticated.contains("a.md"));
         service.stop();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stopping_service_closes_sse_and_releases_old_snapshot() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("a.md"), "# Private note").unwrap();
+        let (service, handle) = start(
+            root.path().to_path_buf(),
+            Profile::General,
+            Branding {
+                color: "#14684e",
+                logo: None,
+            },
+            None,
+        )
+        .await
+        .unwrap();
+        let snapshot = handle.0.snapshot.read().await.clone();
+        let weak = Arc::downgrade(&snapshot);
+        drop(snapshot);
+        let port = service.port;
+        let token = service.access_token.clone();
+        let (ready_tx, ready_rx) = oneshot::channel();
+        let connection = tokio::task::spawn_blocking(move || {
+            let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+                .unwrap();
+            write!(
+                stream,
+                "GET /api/portal-events HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nCookie: note_portal_session={token}\r\n\r\n"
+            )
+            .unwrap();
+            let mut first = [0u8; 4096];
+            let count = stream.read(&mut first).unwrap();
+            assert!(String::from_utf8_lossy(&first[..count]).contains("200 OK"));
+            let _ = ready_tx.send(());
+            let mut remaining = Vec::new();
+            stream.read_to_end(&mut remaining).unwrap();
+        });
+        ready_rx.await.unwrap();
+        drop(handle);
+        service.stop();
+        connection.await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while weak.upgrade().is_some() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("old snapshot should be released after the SSE connection closes");
+    }
+
+    #[tokio::test]
+    async fn preferred_port_is_used_or_falls_back_if_occupied() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("a.md"), "# Note").unwrap();
+        let free = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let preferred = free.local_addr().unwrap().port();
+        drop(free);
+        let brand = Branding {
+            color: "#14684e",
+            logo: None,
+        };
+        let (service, _) = start(
+            root.path().to_path_buf(),
+            Profile::General,
+            brand.clone(),
+            Some(preferred),
+        )
+        .await
+        .unwrap();
+        assert_eq!(service.port, preferred);
+        service.stop();
+        let occupied = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let occupied_port = occupied.local_addr().unwrap().port();
+        let (fallback, _) = start(
+            root.path().to_path_buf(),
+            Profile::General,
+            brand,
+            Some(occupied_port),
+        )
+        .await
+        .unwrap();
+        assert_ne!(fallback.port, occupied_port);
+        fallback.stop();
     }
 
     #[test]
@@ -786,18 +931,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn malformed_existing_note_does_not_replace_active_body() {
+    async fn malformed_existing_note_retains_body_and_publishes_other_changes() {
         let root = tempfile::tempdir().unwrap();
         let note = root.path().join("a.md");
         fs::write(&note, "# Good content").unwrap();
         let handle = test_handle(root.path(), Profile::General);
         fs::write(&note, "---\ntitle: Half written").unwrap();
-        assert!(refresh(&handle).await.is_err());
+        fs::write(root.path().join("b.md"), "# New content").unwrap();
+        assert!(refresh(&handle).await.unwrap());
         let active = handle.0.snapshot.read().await;
-        assert_eq!(
-            active.documents.values().next().unwrap().body.as_ref(),
-            "# Good content"
-        );
+        assert!(active
+            .documents
+            .values()
+            .any(|doc| doc.body.as_ref() == "# Good content"));
+        assert!(active
+            .documents
+            .values()
+            .any(|doc| doc.body.as_ref() == "# New content"));
+        assert!(active.diagnostics.iter().any(|item| item.path == "a.md"));
     }
 
     #[tokio::test]

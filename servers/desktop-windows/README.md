@@ -129,15 +129,18 @@ guide before any folder picker, watcher, or HTTP listener. The full notice has
 separate complete Chinese and English user-facing text; the internal
 implementation reference is not shown in the app. If local settings become
 unreadable, the control window can restore a backup or preserve the damaged
-file before an explicit reset. Choose
-General for ordinary recursive `.md` files,
+file before an explicit reset. Choose General for ordinary recursive `.md` files,
 or Study for `content/<semester>/<unit>/<week-key>/<week-key>-notes.md` plus
 optional `inbox/`. The status window previews recognised files and warnings;
-the normal browser reads the notes on a random `127.0.0.1` port. Only explicit
+the normal browser reads the notes on a loopback `127.0.0.1` port. The app
+tries the previous port on later starts to retain browser reading preferences,
+and uses another port if it is occupied. Only explicit
 **Create note** and **Create Week template** actions write into the library;
 the General form previews the exact destination and blocks a detected name
-collision before submission. The backend still creates exclusively, so a
-file appearing after the preview cannot be overwritten.
+collision before submission. A bad individual note or image appears in
+diagnostics without hiding other notes; an already visible note keeps its last
+readable body while it is temporarily malformed. The backend still creates
+exclusively, so a file appearing after the preview cannot be overwritten.
 
 ## Relationship to the existing Portal
 

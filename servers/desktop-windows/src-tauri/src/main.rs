@@ -84,6 +84,7 @@ struct Settings {
     #[serde(deserialize_with = "saved_theme_color")]
     theme_color: ThemeColor,
     logo_file: Option<String>,
+    preferred_port: Option<u16>,
 }
 
 impl Settings {
@@ -779,14 +780,39 @@ async fn activate(
         .path
         .canonicalize()
         .map_err(|_| "资料库文件夹无法打开。")?;
+    let existing_url = state
+        .running
+        .lock()
+        .map_err(|_| "本地服务暂时不可用。")?
+        .as_ref()
+        .filter(|running| running.root == root && running.profile == selection.profile)
+        .map(|running| running.service.browser_url());
+    if let Some(url) = existing_url {
+        if open_browser {
+            app.opener()
+                .open_url(url, None::<&str>)
+                .map_err(|_| "无法打开默认浏览器。".to_owned())?;
+        }
+        return Ok(current_status(state).await);
+    }
     let existing_settings = state
         .settings
         .lock()
         .map_err(|_| "本机设置暂时不可用。")?
         .clone();
     let (branding, warning) = branding_with_optional_logo(&state.settings_path, &existing_settings);
-    let (new_service, new_handle) =
-        server::start(root.clone(), selection.profile, branding).await?;
+    let replacing_service = state
+        .running
+        .lock()
+        .map_err(|_| "本地服务暂时不可用。")?
+        .is_some();
+    let (new_service, new_handle) = server::start(
+        root.clone(),
+        selection.profile,
+        branding,
+        existing_settings.preferred_port,
+    )
+    .await?;
     let mut next = state
         .settings
         .lock()
@@ -796,6 +822,9 @@ async fn activate(
         path: root.clone(),
         profile: selection.profile,
     });
+    if !replacing_service {
+        next.preferred_port = Some(new_service.port);
+    }
     if let Err(error) = state.save(&next) {
         new_service.stop();
         return Err(error);
