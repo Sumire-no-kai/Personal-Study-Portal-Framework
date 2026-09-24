@@ -6,7 +6,7 @@
 
 | 项目 | 记录 |
 | --- | --- |
-| 版本 | [v0.1.0-alpha.1](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.1.0-alpha.1) 和 [v0.1.0-alpha.2](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.1.0-alpha.2)；以后者为最终包。两标签间桌面应用源码未变，仅新增测试计划等文档。 |
+| 版本 | v0.1.0-alpha.1 和 v0.1.0-alpha.2；以后者为最终包。两标签间桌面应用源码未变，仅新增测试计划等文档。两版预发布已于 2026-09-24 撤下，原发布页与下载链接不再可用。 |
 | 安装包与校验 | 两版文件名均为 Note.Portal_0.1.0_x64-setup.exe。alpha.1：3,903,888 字节，SHA-256 EED09244925F22B43284C9CE4A84B3166CA4601CB3613BE4785177823A14160D；alpha.2：3,905,859 字节，SHA-256 38803454ED951C54DABB3715469A97BEC993861F721109A19D8DF5B2FB61C37B。均与各自公开 SHA256SUMS.txt 相符。 |
 | 签名与架构 | 两包均未签名。安装后两版应用的 PE Machine 均为 0x8664，即 x64。 |
 | 系统 | Windows 25H2，构建 10.0.26200.9457；系统 X64、进程 AMD64、20 个逻辑处理器。注册表 ProductName 原始值为 Windows 10 Home。 |

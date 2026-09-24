@@ -46,8 +46,7 @@ the source tree. The static reader starts in a safe empty-library state; add a g
 The [Windows prereleases](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)
 use unsigned architecture-labelled `*-setup.exe` installers and a
 `SHA256SUMS.txt` checksum when both architecture builds succeed. Check each
-release's actual assets before downloading: the first `v0.1.0-alpha.1`
-release is x64-only; a Windows on ARM device needs a later release with an
+release's actual assets before downloading; a Windows on ARM device needs the
 `arm64-setup.exe` asset for native ARM64 testing.
 Use the installer, not GitHub Packages. GitHub automatically supplies source
 archives for each release. This is an alpha: a Windows clean-machine install,

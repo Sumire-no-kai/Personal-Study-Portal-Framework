@@ -7,7 +7,7 @@
 1. 从[公开 Releases](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)下载要测试的版本，不用 CI 临时 artifact 代替正式下载路径。保存 Release 链接、标签、安装包完整文件名和 `SHA256SUMS.txt`。
 2. 用 PowerShell 的 `Get-FileHash -Algorithm SHA256` 核对安装包与校验文件。不一致就停止安装并报告。
 3. 记录 Windows 版本与构建号、设备的处理器/系统架构、默认浏览器、是否已有 Edge WebView2 Runtime，以及测试前是否装过 Note Portal。
-4. Windows on ARM 优先选择文件名含 `arm64-setup.exe` 的包。**`v0.1.0-alpha.1` 只有 x64 包**；它在 ARM 机器上即使通过模拟运行，也不能算原生 ARM64 验证。如果所选 Release 没有 ARM64 包，记录“ARM64 包未发布”，不要把 x64 结果写成 ARM64 通过。
+4. Windows on ARM 优先选择文件名含 `arm64-setup.exe` 的包。x64 包在 ARM 机器上即使通过模拟运行，也不能算原生 ARM64 验证。如果所选 Release 没有 ARM64 包，记录“ARM64 包未发布”，不要把 x64 结果写成 ARM64 通过。
 5. Tauri 的 ARM64 NSIS 安装器外壳可能通过 x86 模拟运行，安装后的 Note Portal 应用主体仍应是原生 ARM64。安装器进程显示 x86 不是应用构建失败；应检查安装后的应用进程或可执行文件架构。
 
 只在可信的测试机或虚拟机上处理未签名安装包。SmartScreen、杀毒软件或 WebView2 安装提示要截图记录；不要为了测试关闭系统防护，也不要在不信任的电脑上强行放行。
@@ -85,7 +85,7 @@
 
 ### 版本、机器与方法
 
-- 测试时仓库检出：`8208048943738627a527bb162c0064ff72bdb7b1`。Release 为 [`v0.1.0-alpha.2`](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.1.0-alpha.2)。下载正式发布的 `Note.Portal_0.1.0_arm64-setup.exe`（3,607,883 字节）及同版 [`SHA256SUMS.txt`](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/download/v0.1.0-alpha.2/SHA256SUMS.txt)；[安装包下载链接](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/download/v0.1.0-alpha.2/Note.Portal_0.1.0_arm64-setup.exe)。安装包 SHA-256 为 `99dd7f0ccf9f162c9ca123cecf5f254e43fab9c022e357e73cfa9148a8decf0b`，与清单一致。Authenticode：`NotSigned`。
+- 测试时仓库检出：`8208048943738627a527bb162c0064ff72bdb7b1`。Release 为 `v0.1.0-alpha.2`（该预发布版已于 2026-09-24 撤下，原发布页与下载链接不再可用）。下载正式发布的 `Note.Portal_0.1.0_arm64-setup.exe`（3,607,883 字节）及同版 `SHA256SUMS.txt`。安装包 SHA-256 为 `99dd7f0ccf9f162c9ca123cecf5f254e43fab9c022e357e73cfa9148a8decf0b`，与清单一致。Authenticode：`NotSigned`。
 - 本机：Windows 注册表 `ProductName=Windows 10 Home China`（兼容名称），`DisplayVersion=25H2`，内核 `10.0.26200.9457`（Build 26200，UBR 9457）；系统 ARM64，`Snapdragon (TM) 8cx Gen 3 @ 2.69 GHz`。默认浏览器 Chrome；Edge WebView2 Runtime `153.0.4234.48`。测试前未发现 Note Portal 安装项。
 - NSIS 安装过程未出现 SmartScreen、杀毒阻止或 UAC/管理员授权提示。安装后的 `note-portal-desktop.exe` 文件版本 0.1.0、大小 12,483,072 字节；PE `Machine=0xAA64`，即原生 ARM64。开始菜单已生成 `Note Portal.lnk`；本轮通过已安装 EXE 启动并操作，未在开始菜单中实际点击该快捷方式。
 - 两份仓库虚构示例复制到独立的 `NotePortalQA/general` 与 `NotePortalQA/study` 副本，另建空目录；从未把仓库原件或真实笔记交给应用。测试前记录 12 个 `.md`/图片文件的相对路径、大小、SHA-256（本机证据：`NotePortal-Test-Artifacts/fixture-baseline.csv`）。
