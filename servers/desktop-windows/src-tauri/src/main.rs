@@ -468,6 +468,11 @@ async fn reset_corrupt_settings(state: State<'_, Arc<AppState>>) -> Result<Setti
 }
 
 #[tauri::command]
+fn get_app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+#[tauri::command]
 fn get_notice(language: String) -> String {
     if language == "en" {
         format!("{NOTICE_EN}\n\n## Project licence text\n\n{LICENSE}")
@@ -1316,6 +1321,7 @@ fn main() {
         )
         .invoke_handler(tauri::generate_handler![
             get_status,
+            get_app_version,
             restore_settings_backup,
             reset_corrupt_settings,
             get_notice,
