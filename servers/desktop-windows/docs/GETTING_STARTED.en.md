@@ -53,6 +53,8 @@ If you are migrating older notes, **copy** them to a temporary library first. Ch
 - **Settings and terms:** Change the interface language and Windows reader accent colour, choose or clear a local PNG/JPEG/WebP logo (maximum 2 MiB), and reread the formatted responsible-use notice. Refresh an already open browser page after changing reader branding. No official institution logo is bundled.
 - **Stop service / Start service:** Pause or resume local reading. Closing the small window does not quit the app; use **Quit** to stop it completely.
 
+If you cannot find the taskbar icon after closing the window, launch Note Portal again. The existing process will reopen its control window without starting a second service.
+
 Edit a `.md` file with your usual editor, or let an external tool update it. Save the file and Note Portal will refresh the browser view. Keep images beside the note, for example `topic/_assets/diagram.png`, and refer to them relatively as `![Diagram](_assets/diagram.png)`.
 
 The local service listens on your own computer. A public internet deployment is not supported by this release. Follow the academic-integrity, copyright, privacy and confidentiality rules that apply to your materials.
