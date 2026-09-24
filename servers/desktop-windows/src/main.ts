@@ -110,12 +110,96 @@ const backendTranslations: Record<string, string> = {
   "Frontmatter 格式错误；请检查字段类型和缩进。": "Frontmatter is invalid. Check field types and indentation.",
   "显式 id 只能包含英文字母、数字、- 和 _，且最多 64 个字符。": "An explicit id may contain only letters, numbers, - and _, up to 64 characters.",
   "请修改 frontmatter 的 id，或删除该字段。": "Change the frontmatter id or remove that field.",
+  "设置路径无效。": "The local settings path is invalid.",
+  "无法创建本机设置文件夹。": "Could not create the local settings folder.",
+  "本机设置文件是符号链接；为保护数据，已拒绝写入。": "The settings file is a symbolic link; writing was refused to protect your data.",
+  "无法检查本机设置文件；为保护数据，已拒绝写入。": "Could not inspect the settings file; writing was refused to protect your data.",
+  "无法保存本机设置。": "Could not save local settings.",
+  "无法创建临时设置文件名。": "Could not create a temporary settings filename.",
+  "无法创建临时设置文件。": "Could not create a temporary settings file.",
+  "无法完整写入临时设置文件。": "Could not finish writing the temporary settings file.",
+  "无法安全替换本机设置文件。": "Could not safely replace the local settings file.",
+  "写入设置失败，且临时设置文件无法清理。": "Saving settings failed, and the temporary file could not be removed.",
+  "无法读取当前设置，已保留原文件。": "Could not read the current settings; the original file was kept.",
+  "本机设置已损坏。请先备份并人工检查设置文件。": "Local settings are damaged. Back up and inspect the settings file first.",
+  "本机设置无需恢复。": "Local settings do not need restoring.",
+  "本机设置无需重置。": "Local settings do not need resetting.",
+  "无法备份损坏的设置；尚未恢复或重置。": "Could not back up the damaged settings; no restore or reset was made.",
+  "设置文件过大；请先人工检查，尚未恢复或重置。": "The settings file is too large; inspect it manually. No restore or reset was made.",
+  "无法创建设置备份名称。": "Could not create a settings backup name.",
+  "无法创建损坏设置的备份；尚未恢复或重置。": "Could not create a backup of the damaged settings; no restore or reset was made.",
+  "无法完整备份损坏的设置；尚未恢复或重置。": "Could not finish backing up the damaged settings; no restore or reset was made.",
+  "损坏设置的备份未完成，且临时备份无法清理。": "The damaged-settings backup failed, and the incomplete backup could not be removed.",
+  "设置备份无效或过大。": "The settings backup is invalid or too large.",
+  "无法读取设置备份。": "Could not read the settings backup.",
+  "设置备份也已损坏；请改用备份后重置。": "The settings backup is also damaged; use Back up and reset instead.",
+  "本机 Logo 文件名无效。": "The local logo filename is invalid.",
+  "已选择的本机 Logo 无法读取；请在设置中重新选择或清除。": "The selected local logo cannot be read. Replace or remove it in Settings.",
+  "已选择的本机 Logo 文件无效；请在设置中重新选择或清除。": "The selected local logo file is invalid. Replace or remove it in Settings.",
+  "已选择的本机 Logo 格式与文件名不符。": "The selected logo format does not match its filename.",
+  "无法创建本机 Logo 文件名。": "Could not create a local logo filename.",
+  "无法保存本机 Logo。": "Could not save the local logo.",
+  "无法完整保存本机 Logo。": "Could not finish saving the local logo.",
+  "无法完整保存本机 Logo，且未能清理未完成的文件。": "Could not finish saving the local logo or remove the incomplete file.",
+  "新 Logo 已保存，但旧 Logo 文件无法清理。": "The new logo was saved, but the old logo file could not be removed.",
+  "Logo 已清除，但旧 Logo 文件无法清理。": "The logo was cleared, but the old logo file could not be removed.",
+  "文件夹选择已中断。": "Folder selection was interrupted.",
+  "预览任务意外中断。": "The preview task stopped unexpectedly.",
+  "无法创建 content 文件夹。": "Could not create the content folder.",
+  "无法创建 inbox 文件夹。": "Could not create the inbox folder.",
+  "无法打开支持页面；请检查默认浏览器设置。": "Could not open the support page. Check your default browser.",
+  "无法更改系统的登录启动设置。": "Could not change the system login-startup setting.",
+  "这个操作不适用于当前资料库类型。": "This action is not available for the current library type.",
+  "无法创建目标文件夹。": "Could not create the destination folder.",
+  "目标文件夹无法打开。": "Could not open the destination folder.",
+  "Week 模板创建未完成，请检查目标文件。": "Week template creation did not finish. Check the destination file.",
+  "无法创建本地阅读会话。": "Could not create a local reading session.",
+  "扫描任务意外中断；当前阅读内容保持不变。": "The scan stopped unexpectedly; current reading content was kept.",
+  "无法打开资料库文件夹。": "Could not open the library folder.",
+  "资料库扫描任务意外中断。": "The library scan stopped unexpectedly.",
+  "资料库文件夹扫描意外中断。": "The library folder scan stopped unexpectedly.",
+  "无法启动本地服务；请检查系统网络权限。": "Could not start the local service. Check system network permissions.",
+  "无法确定本地服务端口。": "Could not determine the local service port.",
+  "无法监控资料库变动；请检查文件夹权限。": "Could not watch library changes. Check folder permissions.",
+  "无法读取文件；请检查文件权限。": "Could not read the file. Check its permissions.",
+  "无法读取文件信息；请检查文件权限。": "Could not read file information. Check permissions.",
+  "文件暂时无法读取。": "The file is temporarily unreadable.",
+  "文件读取期间发生变化；请稍后刷新。": "The file changed while being read. Refresh again shortly.",
+  "文件读取期间发生变化；请保存完成后再刷新。": "The file changed while being read. Finish saving, then refresh.",
+  "文件不是有效 UTF-8。": "The file is not valid UTF-8.",
+  "扫描资料库时无法读取一个文件夹；请检查权限。": "A folder could not be read during the library scan. Check permissions.",
+  "无法读取文件或文件夹。": "Could not read a file or folder.",
+  "请检查访问权限，保存或同步完成后再刷新。": "Check access permissions, then refresh after saving or syncing finishes.",
+  "资料库路径异常。": "The library path is invalid.",
+  "路径包含无法识别的字符。": "The path contains unrecognised characters.",
+  "请在文件管理器中手动改名。": "Rename it yourself in the file manager.",
+  "请检查图片文件，保存或同步完成后再刷新。": "Check the image, then refresh after saving or syncing finishes.",
+  "请检查文件编码和大小，保存完成后再刷新。": "Check the file encoding and size, then refresh after saving finishes.",
+  "资料库的 Markdown 总量超过 64 MiB；请分开选择较小的资料库。": "The library contains more than 64 MiB of Markdown. Choose a smaller library.",
 };
 
 function backendText(value: string): string {
   if (language === "zh") return value;
   if (backendTranslations[value]) return backendTranslations[value];
   if (value.startsWith("建议名称：")) return `Suggested name: ${value.slice(5)}`;
+  const pathSeparator = value.indexOf("：");
+  if (pathSeparator > 0) {
+    const detail = value.slice(pathSeparator + 1);
+    const translated = backendText(detail);
+    if (translated !== detail) return `${value.slice(0, pathSeparator)}: ${translated}`;
+  }
+  const oversized = value.match(/^文件超过 (\d+) MiB 的大小限制。$/);
+  if (oversized) return `File exceeds the ${oversized[1]} MiB size limit.`;
+  const collision = value.match(/^资料库存在仅大小写不同的冲突路径：(.*)。请先手动处理。$/);
+  if (collision) return `The library has paths that differ only by letter case: ${collision[1]}. Resolve this manually.`;
+  const duplicateId = value.match(/^资料库存在重复的文档 id：(.*)。请修改其中一篇的 frontmatter。$/);
+  if (duplicateId) return `The library has a duplicate document id: ${duplicateId[1]}. Change one note's frontmatter.`;
+  const logoCleanup = " 未使用的 Logo 文件也未能清理。";
+  if (value.endsWith(logoCleanup)) return `${backendText(value.slice(0, -logoCleanup.length))} The unused logo file could not be removed.`;
+  const loginWarning = " 系统登录启动设置可能已改变，请手动检查。";
+  if (value.endsWith(loginWarning)) return `${backendText(value.slice(0, -loginWarning.length))} The login-startup setting may have changed; check it manually.`;
+  const logoFallback = " 已改用文字标识；请在设置中重新选择或清除 Logo。";
+  if (value.endsWith(logoFallback)) return `${backendText(value.slice(0, -logoFallback.length))} The text mark is in use; replace or remove the logo in Settings.`;
   return value;
 }
 
@@ -556,7 +640,7 @@ async function showSettings(): Promise<void> {
       input.checked = !input.checked;
       const message = dialog.querySelector<HTMLElement>("#dialog-message")!;
       message.hidden = false;
-      message.textContent = String(error);
+      message.textContent = backendText(String(error));
     }
   }));
 }
