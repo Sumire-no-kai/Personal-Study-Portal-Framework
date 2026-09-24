@@ -1282,6 +1282,13 @@ fn show_window(app: &AppHandle) {
     }
 }
 
+// A later successful service action supersedes any tray or startup error still on display.
+fn clear_reported_error(state: &AppState) {
+    if let Ok(mut error) = state.startup_error.lock() {
+        *error = None;
+    }
+}
+
 fn report_tray_error(app: &AppHandle, error: String) {
     let state = app.state::<Arc<AppState>>();
     if let Ok(mut visible_error) = state.startup_error.lock() {
@@ -1290,13 +1297,6 @@ fn report_tray_error(app: &AppHandle, error: String) {
     show_window(app);
     // The event updates an already-open dialog; status retains the error if the event is missed.
     let _ = app.emit_to("main", "note-portal-tray-error", error);
-}
-
-// A later successful service action supersedes any tray or startup error still on display.
-fn clear_reported_error(state: &AppState) {
-    if let Ok(mut error) = state.startup_error.lock() {
-        *error = None;
-    }
 }
 
 #[cfg(target_os = "windows")]
