@@ -87,7 +87,8 @@ discovery contract and navigation data, not by a second web application.
 
 On Windows, install Node.js and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/):
 Rust with the MSVC toolchain, Microsoft C++ Build Tools with “Desktop development
-with C++”, and the WebView2 runtime. In PowerShell from this directory:
+with C++”, and the WebView2 runtime. The checked-in `rust-toolchain.toml`
+selects Rust 1.98.1 for local and CI builds. In PowerShell from this directory:
 
 ```powershell
 npm ci
