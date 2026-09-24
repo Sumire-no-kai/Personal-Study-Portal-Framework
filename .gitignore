@@ -26,6 +26,7 @@
 !servers/desktop-windows/package-lock.json
 !servers/desktop-windows/package.json
 !servers/desktop-windows/tsconfig.json
+!servers/desktop-windows/rust-toolchain.toml
 !servers/desktop-windows/vite.config.ts
 !servers/desktop-windows/docs/
 !servers/desktop-windows/docs/ACADEMIC_INTEGRITY_NOTICE.md
