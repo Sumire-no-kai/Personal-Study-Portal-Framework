@@ -120,10 +120,9 @@ dialog reads the packaged version so testers can identify the installed alpha.
 A version bump alone does not publish or replace an existing release. A
 PR or `master` push without that tag does not publish a release. The release
 description contains fixed installation/safety guidance plus generated change
-notes; it does not assert clean-machine compatibility. The first
-`v0.1.0-alpha.1` release predates the ARM64 build and
-contains only x64. ARM64 testers should choose an `arm64-setup.exe` asset from
-a newer release, not treat an emulated x64 run as native ARM64 validation.
+notes; it does not assert clean-machine compatibility. ARM64 testers should
+choose the `arm64-setup.exe` asset, not treat an emulated x64 run as native
+ARM64 validation.
 The ARM64 NSIS bootstrapper itself may use x86 emulation while the installed
 application is native ARM64.
 Windows Defender/SmartScreen may warn about an unsigned alpha. Do not bypass
