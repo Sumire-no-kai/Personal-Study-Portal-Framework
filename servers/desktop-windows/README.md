@@ -151,17 +151,20 @@ exclusively, so a file appearing after the preview cannot be overwritten.
 The repository-root reader remains the static-site baseline. Windows embeds
 its own copy in `reader/` and serves it over loopback with a local library.
 Changes to the Windows copy do not change the root site or a separate private
-Honor deployment. Review any future root-to-Windows reader sync explicitly.
+deployment. Review any future root-to-Windows reader sync explicitly.
 
 What the desktop build does exclude is content, not code: private notes,
 generated manifests, course configuration and indexes, and any credential.
 
 ## Alpha limitations
 
-The [PRD](PRD.md) defines the stable-release acceptance criteria. This alpha
-has passed macOS static compilation and focused unit tests, but the Windows
-installer, actual window/browser behaviour, accessibility, clean-machine
-installation, signing, and resource budgets are not yet verified. The in-memory
+The [PRD](PRD.md) defines the stable-release acceptance criteria. Formatting,
+unit tests and Clippy run on native Windows x64 and ARM64 CI runners, and
+earlier alpha builds were installed and exercised on one x64 PC and one Windows
+on ARM device (see the [test plan](docs/WINDOWS_TEST_PLAN.zh-CN.md) and the
+[x64 test record](docs/WINDOWS_X64_TEST_RUN_2026-09-23.md)). Clean-machine
+installation, accessibility, signing, resource budgets and tray-icon visibility
+across devices are not yet verified. The in-memory
 search snapshot currently retains Markdown bodies and rescans the whole
 library after a relevant file event; an image whose size and modification time
 are unchanged keeps its previous hash instead of being read again, and served
