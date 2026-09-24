@@ -635,8 +635,7 @@ async function showSettings(): Promise<void> {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) throw new Error(tr("Logo 超过 2 MiB。", "Logo exceeds 2 MiB."));
-    const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
-    status = await invoke<Status>("set_brand_logo", { bytes });
+    status = await invoke<Status>("set_brand_logo", new Uint8Array(await file.arrayBuffer()));
     renderStatus();
     await showSettings();
   }));

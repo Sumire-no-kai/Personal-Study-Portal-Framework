@@ -84,4 +84,6 @@
 !servers/desktop-windows/src-tauri/src/
 !servers/desktop-windows/src-tauri/src/library.rs
 !servers/desktop-windows/src-tauri/src/main.rs
+!servers/desktop-windows/src-tauri/src/platform/
+!servers/desktop-windows/src-tauri/src/platform/mod.rs
 !servers/desktop-windows/src-tauri/src/server.rs
