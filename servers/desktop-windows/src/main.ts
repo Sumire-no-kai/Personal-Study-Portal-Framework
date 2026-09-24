@@ -269,7 +269,7 @@ function renderAfterStatus(): void {
   else renderStatus();
 }
 
-// Launch skips a saved library until the notice and guide are done; start it here so it is not shown stopped and empty.
+// Launch skips a saved library while settings need recovery or the notice or guide is pending; start it once that is resolved so it is not shown stopped and empty.
 async function continueAfterGate(): Promise<void> {
   renderAfterStatus();
   const ready = !status.settingsRecoveryPath && status.noticeAccepted && status.guideCompleted;
@@ -288,8 +288,8 @@ function renderSettingsRecovery(): void {
   app.querySelector("#restore-settings")?.addEventListener("click", () => void action(async () => {
     const result = await invoke<SettingsReset>("restore_settings_backup");
     status = result.status;
-    openDialog(tr("设置已恢复", "Settings restored"), `<p>${tr("原损坏设置已另外保存在：", "The damaged settings were preserved at:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p>${recoveryWarning(result.warning)}<button class="button primary" id="continue-after-restore" type="button">${tr("继续", "Continue")}</button>`);
-    dialog.querySelector("#continue-after-restore")?.addEventListener("click", () => { dialog.close(); renderAfterStatus(); });
+    openDialog(tr("设置已恢复", "Settings restored"), `<p>${tr("原损坏设置已另外保存在：", "The damaged settings were preserved at:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p>${recoveryWarning(result.warning)}<button class="button primary" id="continue-after-restore" type="button">${tr("继续", "Continue")}</button>`, false);
+    dialog.querySelector("#continue-after-restore")?.addEventListener("click", () => { dialog.close(); void action(continueAfterGate); });
   }));
   app.querySelector("#reset-settings")?.addEventListener("click", () => {
     openDialog(tr("确认重置本机设置", "Confirm local settings reset"), `<p>${tr("将保留一份损坏设置的备份，然后清除应用中的资料库选择、主题和启动选项。原始笔记文件不会被修改。", "The damaged settings will be backed up, then the app's library selection, theme and startup options will be cleared. Your note files will not be changed.")}</p><div class="button-row"><button class="button" id="cancel-reset" type="button">${tr("取消", "Cancel")}</button><button class="button primary" id="confirm-reset" type="button">${tr("备份并重置", "Back up and reset")}</button></div><p id="dialog-message" class="message" role="alert" hidden></p>`);
@@ -297,7 +297,7 @@ function renderSettingsRecovery(): void {
     dialog.querySelector("#confirm-reset")?.addEventListener("click", () => void action(async () => {
       const result = await invoke<SettingsReset>("reset_corrupt_settings");
       status = result.status;
-      openDialog(tr("设置已重置", "Settings reset"), `<p>${tr("损坏设置已备份到：", "Damaged settings were backed up to:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p>${recoveryWarning(result.warning)}<button class="button primary" id="continue-after-reset" type="button">${tr("继续首次设置", "Continue setup")}</button>`);
+      openDialog(tr("设置已重置", "Settings reset"), `<p>${tr("损坏设置已备份到：", "Damaged settings were backed up to:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p>${recoveryWarning(result.warning)}<button class="button primary" id="continue-after-reset" type="button">${tr("继续首次设置", "Continue setup")}</button>`, false);
       dialog.querySelector("#continue-after-reset")?.addEventListener("click", () => { dialog.close(); renderAfterStatus(); });
     }));
   });
