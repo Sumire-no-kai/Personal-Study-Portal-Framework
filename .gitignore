@@ -29,6 +29,8 @@
 !servers/desktop-windows/vite.config.ts
 !servers/desktop-windows/docs/
 !servers/desktop-windows/docs/ACADEMIC_INTEGRITY_NOTICE.md
+!servers/desktop-windows/docs/NOTICE.zh-CN.md
+!servers/desktop-windows/docs/NOTICE.en.md
 !servers/desktop-windows/docs/GETTING_STARTED.zh-CN.md
 !servers/desktop-windows/docs/GETTING_STARTED.en.md
 !servers/desktop-windows/docs/LIBRARY_STRUCTURE.md
