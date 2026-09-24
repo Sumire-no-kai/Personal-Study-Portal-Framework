@@ -48,7 +48,7 @@ If you are migrating older notes, **copy** them to a temporary library first. Ch
 - **Open reader:** Open the local site in your default browser.
 - **Refresh now:** Recheck the selected folder immediately.
 - **Open folder:** Open the library in your file manager.
-- **Create note / Create Week template:** Create only a new, previewed file. Existing files are never overwritten.
+- **Create note / Create Week template:** Create only a new, previewed file. General mode can target an empty folder; the preview shows the destination relative to the library. Existing files are never overwritten.
 - **Change library:** Preview another folder before switching.
 - **Settings and terms:** Change the interface language and Windows reader accent colour, choose or clear a local PNG/JPEG/WebP logo (maximum 2 MiB), and reread the formatted responsible-use notice. Refresh an already open browser page after changing reader branding. No official institution logo is bundled.
 - **Stop service / Start service:** Pause or resume local reading. Closing the small window does not quit the app; use **Quit** to stop it completely.
