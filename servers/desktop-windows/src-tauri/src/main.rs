@@ -30,6 +30,17 @@ const GUIDE_EN: &str = include_str!("../../docs/GETTING_STARTED.en.md");
 const LICENSE: &str = include_str!("../../../../LICENSE");
 const MAX_BRAND_LOGO_BYTES: usize = 2 * 1024 * 1024;
 
+fn friendly_path(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    if let Some(rest) = value.strip_prefix("\\\\?\\UNC\\") {
+        format!("\\\\{rest}")
+    } else if let Some(rest) = value.strip_prefix("\\\\?\\") {
+        rest.to_owned()
+    } else {
+        value.into_owned()
+    }
+}
+
 #[derive(Clone, Copy, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum ThemeColor {
@@ -217,7 +228,7 @@ async fn current_status(state: &Arc<AppState>) -> Status {
         library_path: settings
             .library
             .as_ref()
-            .map(|item| item.path.to_string_lossy().into_owned()),
+            .map(|item| friendly_path(&item.path)),
         library_name: settings
             .library
             .as_ref()
@@ -532,6 +543,24 @@ async fn preview_folder(
         tree: snapshot.tree,
         diagnostics: snapshot.diagnostics,
     })
+}
+
+#[tauri::command]
+async fn list_general_folders(state: State<'_, Arc<AppState>>) -> Result<Vec<String>, String> {
+    state.ensure_ready()?;
+    let selection = state
+        .settings
+        .lock()
+        .map_err(|_| "本机设置暂时不可用。")?
+        .library
+        .clone()
+        .ok_or("请先选择一个资料库。")?;
+    if selection.profile != Profile::General {
+        return Err("这个操作不适用于当前资料库类型。".into());
+    }
+    tokio::task::spawn_blocking(move || library::general_folders(&selection.path))
+        .await
+        .map_err(|_| "资料库文件夹扫描意外中断。".to_owned())?
 }
 
 async fn activate(
@@ -1052,6 +1081,7 @@ fn main() {
             complete_guide,
             pick_folder,
             preview_folder,
+            list_general_folders,
             select_library,
             create_library,
             start_service,
@@ -1169,6 +1199,16 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn windows_extended_paths_are_human_readable_only_at_display_boundary() {
+        assert_eq!(friendly_path(Path::new(r"\\?\C:\Notes")), r"C:\Notes");
+        assert_eq!(
+            friendly_path(Path::new(r"\\?\UNC\server\share")),
+            r"\\server\share"
+        );
+        assert_eq!(friendly_path(Path::new("/notes")), "/notes");
+    }
 
     #[test]
     fn general_note_preview_uses_the_creation_path() {

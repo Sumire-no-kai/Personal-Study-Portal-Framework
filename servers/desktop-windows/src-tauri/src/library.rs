@@ -407,6 +407,49 @@ fn diagnostic(path: &str, reason: &str, suggestion: &str) -> Diagnostic {
     }
 }
 
+pub fn general_folders(root: &Path) -> Result<Vec<String>, String> {
+    let root = root.canonicalize().map_err(|_| "资料库文件夹无法打开。")?;
+    let mut folders = Vec::new();
+    let mut entries = WalkDir::new(&root).follow_links(false).into_iter();
+    while let Some(entry) = entries.next() {
+        let entry = match entry {
+            Ok(entry) => entry,
+            // The normal scanner reports unreadable paths; they cannot be creation targets.
+            Err(_) => continue,
+        };
+        if entry.depth() == 0 {
+            continue;
+        }
+        if is_ignored(&entry.file_name().to_string_lossy()) {
+            if entry.file_type().is_dir() {
+                entries.skip_current_dir();
+            }
+            continue;
+        }
+        if !entry.file_type().is_dir() {
+            continue;
+        }
+        let relative = entry
+            .path()
+            .strip_prefix(&root)
+            .map_err(|_| "资料库路径异常。")?
+            .to_str()
+            .map(str::to_owned);
+        let Some(relative) = relative else {
+            entries.skip_current_dir();
+            continue;
+        };
+        let relative = relative.replace('\\', "/");
+        if !valid_relative_path(&relative) {
+            entries.skip_current_dir();
+            continue;
+        }
+        folders.push(relative);
+    }
+    folders.sort_by(|a, b| natural_cmp(a, b));
+    Ok(folders)
+}
+
 pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, String> {
     scan_with_previous(root, profile, sequence, None)
 }
@@ -1027,6 +1070,23 @@ mod tests {
             .documents
             .values()
             .any(|doc| doc.title == "Roadmap"));
+    }
+
+    #[test]
+    fn general_folder_picker_includes_empty_and_draft_only_folders() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("empty/nested")).unwrap();
+        fs::create_dir(root.path().join("drafts")).unwrap();
+        fs::write(
+            root.path().join("drafts/draft.md"),
+            "---\ndraft: true\n---\n# Draft",
+        )
+        .unwrap();
+        fs::create_dir(root.path().join(".hidden")).unwrap();
+        assert_eq!(
+            general_folders(root.path()).unwrap(),
+            vec!["drafts", "empty", "empty/nested"]
+        );
     }
 
     #[test]
