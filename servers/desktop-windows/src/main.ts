@@ -269,6 +269,15 @@ function renderAfterStatus(): void {
   else renderStatus();
 }
 
+// Launch skips a saved library until the notice and guide are done; start it here so it is not shown stopped and empty.
+async function continueAfterGate(): Promise<void> {
+  renderAfterStatus();
+  const ready = !status.settingsRecoveryPath && status.noticeAccepted && status.guideCompleted;
+  if (!ready || !status.libraryPath || status.serviceState !== "stopped") return;
+  status = await invoke<Status>("start_service", { openBrowser: false });
+  renderStatus();
+}
+
 function recoveryWarning(warning: string | null): string {
   return warning ? `<p class="message" role="alert">${escapeHtml(backendText(warning))}</p>` : "";
 }
@@ -385,7 +394,7 @@ async function showNotice(): Promise<void> {
     if (!noticeRead || !app.querySelector<HTMLInputElement>("#notice-check")?.checked) return;
     await invoke("accept_notice");
     status = await invoke<Status>("get_status");
-    renderAfterStatus();
+    await continueAfterGate();
   }));
 }
 
@@ -412,8 +421,7 @@ function showFirstRunGuide(step = 0): void {
       await invoke("complete_guide");
       status = await invoke<Status>("get_status");
       dialog.close();
-      if (status.libraryPath) renderStatus();
-      else renderSetup();
+      await continueAfterGate();
     });
   });
 }
