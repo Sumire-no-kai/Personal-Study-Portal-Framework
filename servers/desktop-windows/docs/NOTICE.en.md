@@ -14,7 +14,7 @@ The tool grants no right to copy, process, publish, or share course material, as
 
 The app reads only the library folder you select and builds navigation, hashes, and search data locally. This version has no cloud account or built-in AI service and does not intentionally upload note content. Existing Markdown and images remain in place; scanning, reading, searching, and refreshing do not silently move, rename, overwrite, or delete them. Only explicit **Create note** and **Create Week template** actions add files, and they do not overwrite an existing file. Any editor, automation, or external AI service you choose has its own data-handling practices and settings.
 
-Local settings store the selected library, appearance and startup options, and the accepted notice version and time. Diagnostics may show paths relative to your library but should not include complete note bodies or credentials. Other users or programs with access to your computer may still be able to read your local files.
+Local settings store the selected library, appearance and startup options, the last local port used, first-use guide completion, and the accepted notice version and time; backups of these settings are kept in the same place. Diagnostics may show paths relative to your library but should not include complete note bodies or credentials. Other users or programs with access to your computer may still be able to read your local files.
 
 ## Network access and sharing
 

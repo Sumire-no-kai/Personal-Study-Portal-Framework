@@ -452,25 +452,59 @@ async fn get_status(state: State<'_, Arc<AppState>>) -> Result<Status, String> {
 struct SettingsReset {
     status: Status,
     backup_path: String,
+    warning: Option<String>,
 }
 
-#[tauri::command]
-async fn restore_settings_backup(state: State<'_, Arc<AppState>>) -> Result<SettingsReset, String> {
-    let _operation = state.operation.lock().await;
-    let backup = state.restore_settings_backup()?;
-    Ok(SettingsReset {
-        status: current_status(state.inner()).await,
-        backup_path: backup.to_string_lossy().into_owned(),
+// Recovered settings replace `launch_at_login`, so the OS login item must follow them.
+fn sync_login_item(app: &AppHandle, enabled: bool) -> Option<String> {
+    let autolaunch = app.autolaunch();
+    // Disabling an absent Windows entry is an error, so change the item only when it differs.
+    let synced = autolaunch.is_enabled().and_then(|current| {
+        if current == enabled {
+            Ok(())
+        } else if enabled {
+            autolaunch.enable()
+        } else {
+            autolaunch.disable()
+        }
+    });
+    synced.err().map(|_| {
+        "系统登录启动项未能同步；请在“设置与条款”中把登录启动选项重新切换一次。".to_owned()
     })
 }
 
 #[tauri::command]
-async fn reset_corrupt_settings(state: State<'_, Arc<AppState>>) -> Result<SettingsReset, String> {
+async fn restore_settings_backup(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Result<SettingsReset, String> {
     let _operation = state.operation.lock().await;
-    let backup = state.reset_corrupt_settings()?;
+    let backup = state.restore_settings_backup()?;
+    let launch_at_login = state
+        .settings
+        .lock()
+        .map_err(|_| "本机设置暂时不可用。")?
+        .launch_at_login;
+    let warning = sync_login_item(&app, launch_at_login);
     Ok(SettingsReset {
         status: current_status(state.inner()).await,
         backup_path: backup.to_string_lossy().into_owned(),
+        warning,
+    })
+}
+
+#[tauri::command]
+async fn reset_corrupt_settings(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Result<SettingsReset, String> {
+    let _operation = state.operation.lock().await;
+    let backup = state.reset_corrupt_settings()?;
+    let warning = sync_login_item(&app, false);
+    Ok(SettingsReset {
+        status: current_status(state.inner()).await,
+        backup_path: backup.to_string_lossy().into_owned(),
+        warning,
     })
 }
 
@@ -980,6 +1014,7 @@ async fn start_service(
                 .open_url(url, None::<&str>)
                 .map_err(|_| "无法打开默认浏览器。".to_owned())?;
         }
+        clear_reported_error(state.inner());
         return Ok(current_status(state.inner()).await);
     }
     let selection = state
@@ -1004,6 +1039,7 @@ async fn stop_service(state: State<'_, Arc<AppState>>) -> Result<Status, String>
     };
     if let Some(running) = active {
         running.service.stop();
+        clear_reported_error(state.inner());
     }
     Ok(current_status(state.inner()).await)
 }
@@ -1019,6 +1055,7 @@ async fn refresh_now(state: State<'_, Arc<AppState>>) -> Result<Status, String> 
         .map(|running| running.handle.clone())
         .ok_or("本地服务尚未启动。")?;
     server::refresh(&handle).await?;
+    clear_reported_error(state.inner());
     Ok(current_status(state.inner()).await)
 }
 
@@ -1034,7 +1071,9 @@ async fn open_portal(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<
         .ok_or("请先启动本地服务。")?;
     app.opener()
         .open_url(url, None::<&str>)
-        .map_err(|_| "无法打开默认浏览器；请检查系统默认浏览器设置。".to_owned())
+        .map_err(|_| "无法打开默认浏览器；请检查系统默认浏览器设置。".to_owned())?;
+    clear_reported_error(state.inner());
+    Ok(())
 }
 
 #[tauri::command]
@@ -1240,6 +1279,13 @@ fn show_window(app: &AppHandle) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+// A later successful service action supersedes any tray or startup error still on display.
+fn clear_reported_error(state: &AppState) {
+    if let Ok(mut error) = state.startup_error.lock() {
+        *error = None;
     }
 }
 
