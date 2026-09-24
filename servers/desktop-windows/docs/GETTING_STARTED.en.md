@@ -60,3 +60,12 @@ The local service listens on your own computer. A public internet deployment is 
 ## If a document is missing
 
 First check the selected library type. In Study, verify all four path parts and the matching Week filename. Then press **Refresh now** and read the diagnostic path and suggestion. The app does not silently repair source files.
+
+## If local settings cannot be loaded
+
+This does not mean your notes are damaged. Try **Restore previous settings** first.
+If no valid backup is available, choose **Back up and reset settings**, review the
+confirmation, and set up the app again. The damaged settings are preserved for
+inspection; source-library notes are not deleted or rewritten. If a selected
+logo is missing or damaged, the app uses its text mark until you replace or
+clear the logo in Settings.

@@ -125,8 +125,11 @@ Windows Defender/SmartScreen may warn about an unsigned alpha. Do not bypass
 such warnings on a machine you do not trust.
 
 The app must show the current responsible-use notice and require the first-run
-guide before any folder picker, watcher, or HTTP listener. The full notice and
-Settings copy render as formatted Markdown rather than raw source. Choose
+guide before any folder picker, watcher, or HTTP listener. The full notice has
+separate complete Chinese and English user-facing text; the internal
+implementation reference is not shown in the app. If local settings become
+unreadable, the control window can restore a backup or preserve the damaged
+file before an explicit reset. Choose
 General for ordinary recursive `.md` files,
 or Study for `content/<semester>/<unit>/<week-key>/<week-key>-notes.md` plus
 optional `inbox/`. The status window previews recognised files and warnings;
