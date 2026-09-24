@@ -72,6 +72,7 @@ servers/desktop-windows/
 │   ├── icons/
 │   ├── src/
 │   │   ├── library.rs           # Discovery, metadata and snapshots
+│   │   ├── platform/            # OS-specific integration
 │   │   ├── server.rs            # Loopback HTTP, SSE and watcher
 │   │   └── main.rs
 │   └── tauri.conf.json

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod library;
+mod platform;
 mod server;
 
 use std::{
@@ -647,9 +648,23 @@ async fn set_theme_color(
     Ok(current_status(state.inner()).await)
 }
 
+// The control window sends raw bytes; if the IPC custom protocol is unavailable, Tauri falls back
+// to postMessage and delivers the same bytes as a JSON number array.
+fn logo_upload_bytes(body: &tauri::ipc::InvokeBody) -> Result<Vec<u8>, String> {
+    match body {
+        tauri::ipc::InvokeBody::Raw(bytes) => Ok(bytes.clone()),
+        tauri::ipc::InvokeBody::Json(value) => serde_json::from_value(value.clone())
+            .map_err(|_| "请选择 PNG、JPEG 或 WebP 图片；不接受 SVG 或其他格式。".to_owned()),
+    }
+}
+
 #[tauri::command]
-async fn set_brand_logo(state: State<'_, Arc<AppState>>, bytes: Vec<u8>) -> Result<Status, String> {
+async fn set_brand_logo(
+    request: tauri::ipc::Request<'_>,
+    state: State<'_, Arc<AppState>>,
+) -> Result<Status, String> {
     state.ensure_ready()?;
+    let bytes = logo_upload_bytes(request.body())?;
     let (extension, mime) = logo_kind(&bytes)?;
     let _operation = state.operation.lock().await;
     let mut random = [0u8; 12];
@@ -1253,29 +1268,6 @@ fn report_tray_error(app: &AppHandle, error: String) {
     let _ = app.emit_to("main", "note-portal-tray-error", error);
 }
 
-#[cfg(target_os = "windows")]
-fn system_language() -> &'static str {
-    #[link(name = "Kernel32")]
-    extern "system" {
-        fn GetUserDefaultUILanguage() -> u16;
-    }
-    // LANGID's lower ten bits identify the primary language (Chinese = 0x04).
-    if (unsafe { GetUserDefaultUILanguage() } & 0x03ff) == 0x04 {
-        "zh"
-    } else {
-        "en"
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn system_language() -> &'static str {
-    if std::env::var("LANG").is_ok_and(|value| value.to_ascii_lowercase().starts_with("zh")) {
-        "zh"
-    } else {
-        "en"
-    }
-}
-
 fn tray_menu(app: &AppHandle, language: &str) -> tauri::Result<Menu<tauri::Wry>> {
     let zh = language == "zh";
     MenuBuilder::new(app)
@@ -1361,7 +1353,7 @@ fn main() {
             let state = AppState::load(settings_path);
             app.manage(state.clone());
 
-            let menu = tray_menu(app.handle(), system_language())?;
+            let menu = tray_menu(app.handle(), platform::system_language())?;
             let icon = app.default_window_icon().ok_or("缺少应用图标")?.clone();
             TrayIconBuilder::with_id("note-portal-tray")
                 .icon(icon)
@@ -1413,15 +1405,17 @@ fn main() {
                 .build(app)?;
 
             let autostart = std::env::args().any(|arg| arg == "--note-portal-autostart");
-            if autostart
+            // The window is created hidden so a login launch never flashes it on screen.
+            let start_hidden = autostart
                 && state
                     .settings
                     .lock()
                     .expect("settings mutex poisoned")
-                    .ready()
-            {
+                    .ready();
+            if !start_hidden {
                 if let Some(window) = app.get_webview_window("main") {
-                    window.hide()?;
+                    window.show()?;
+                    let _ = window.set_focus();
                 }
             }
             let selection =
@@ -1581,6 +1575,21 @@ mod tests {
         let (target, relative) = general_note_target(&root, "  Book notes  ", "reading").unwrap();
         assert_eq!(relative, "reading/Book notes.md");
         assert_eq!(target, root.join("reading").join("Book notes.md"));
+    }
+
+    #[test]
+    fn logo_upload_accepts_raw_bytes_and_postmessage_fallback() {
+        use tauri::ipc::InvokeBody;
+        let png = b"\x89PNG\r\n\x1a\nbody".to_vec();
+        assert_eq!(
+            logo_upload_bytes(&InvokeBody::Raw(png.clone())).unwrap(),
+            png
+        );
+        assert_eq!(
+            logo_upload_bytes(&InvokeBody::Json(serde_json::json!(png))).unwrap(),
+            png
+        );
+        assert!(logo_upload_bytes(&InvokeBody::Json(serde_json::json!({ "bytes": [1] }))).is_err());
     }
 
     #[test]
