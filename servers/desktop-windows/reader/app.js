@@ -1554,6 +1554,19 @@ function watchForPublishedPortalRelease() {
       /* A malformed update event must never interrupt note reading. */
     }
   });
+  if (portalData.desktop) {
+    releaseEvents.addEventListener("error", () => {
+      if (document.querySelector(".portal-connection-warning")) return;
+      const warning = document.createElement("div");
+      warning.className = "portal-connection-warning";
+      warning.setAttribute("role", "alert");
+      warning.textContent = "本地服务已断开；当前内容可能不是最新版本。请在 Note Portal 窗口重新打开阅读器。";
+      document.body.prepend(warning);
+    });
+    releaseEvents.addEventListener("open", () => {
+      document.querySelector(".portal-connection-warning")?.remove();
+    });
+  }
 }
 
 function renderPortalIdentity() {

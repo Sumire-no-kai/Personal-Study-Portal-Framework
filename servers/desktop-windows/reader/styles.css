@@ -57,6 +57,19 @@
   text-rendering: optimizeLegibility;
 }
 
+@media screen {
+  body.profile-desktop .portal-connection-warning {
+    position: fixed;
+    z-index: 1000;
+    inset: 0 0 auto;
+    padding: 0.75rem 1rem;
+    background: #812f1d;
+    color: #fff;
+    font: 600 0.95rem/1.5 system-ui, sans-serif;
+    text-align: center;
+  }
+}
+
 /* Desktop libraries use the same reader shell with an ordinary folder tree. */
 .profile-desktop { --primary: #14684e; --primary-hover: #0d563f; --primary-pressed: #084c38; --primary-pale: #e8f3ed; --accent: #14684e; --accent-pale: #e8f3ed; --sidebar-header-surface: #f4f9f5; }
 .profile-desktop { --font-reading: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", Arial, sans-serif; font-family: var(--font-reading); }
