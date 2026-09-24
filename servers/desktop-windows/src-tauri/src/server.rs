@@ -100,7 +100,25 @@ impl Service {
 }
 
 fn guarded_response(status: StatusCode) -> Response {
-    (status, "Request not allowed").into_response()
+    let mut response = (status, "Request not allowed").into_response();
+    secure_headers(&mut response);
+    response
+}
+
+fn expired_session_response() -> Response {
+    const BODY: &str = "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><title>Note Portal · 阅读会话已结束</title><h1>阅读会话已结束</h1><p>请在 Note Portal 控制窗口点击“打开阅读器”，重新打开本机阅读页。</p><h1>Reading session expired</h1><p>Open the Note Portal control window and choose Open reader to start a new local reading session.</p></html>";
+    let mut response = (
+        StatusCode::FORBIDDEN,
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        BODY,
+    )
+        .into_response();
+    secure_headers(&mut response);
+    response.headers_mut().insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'none'; base-uri 'none'; form-action 'none'"),
+    );
+    response
 }
 
 fn allowed_request(host: Option<&str>, origin: Option<&str>, port: u16) -> bool {
@@ -177,7 +195,11 @@ async fn request_guard(
         .get(header::COOKIE)
         .and_then(|value| value.to_str().ok());
     if !has_session_cookie(cookie, &state.access_token) {
-        return guarded_response(StatusCode::FORBIDDEN);
+        return if request.method() == Method::GET && request.uri().path() == "/" {
+            expired_session_response()
+        } else {
+            guarded_response(StatusCode::FORBIDDEN)
+        };
     }
     let mut response = next.run(request).await;
     secure_headers(&mut response);
@@ -476,11 +498,7 @@ fn relevant_event(
         };
         let ignored = relative.components().any(|part| {
             let name = part.as_os_str().to_string_lossy();
-            name.starts_with('.')
-                || matches!(name.as_ref(), "node_modules" | "target" | "__pycache__")
-                || [".tmp", ".part", ".swp", ".bak", "~"]
-                    .iter()
-                    .any(|suffix| name.ends_with(suffix))
+            library::is_ignored(&name)
         });
         if ignored {
             return false;
@@ -669,6 +687,9 @@ mod tests {
         let temporary = NotifyEvent::new(EventKind::Modify(ModifyKind::Data(DataChange::Content)))
             .add_path(root.join("note.md.part"));
         assert!(!relevant_event(&root, &Ok(temporary), None));
+        let cache = NotifyEvent::new(EventKind::Modify(ModifyKind::Data(DataChange::Content)))
+            .add_path(root.join("target/note.md"));
+        assert!(!relevant_event(&root, &Ok(cache), None));
         let renamed = NotifyEvent::new(EventKind::Modify(ModifyKind::Name(
             notify::event::RenameMode::Both,
         )))
@@ -754,6 +775,19 @@ mod tests {
                 .await
                 .unwrap();
         assert!(unauthenticated.starts_with("HTTP/1.1 403"));
+        assert!(!unauthenticated.contains("Private note"));
+
+        let expired = tokio::task::spawn_blocking(move || local_get(port, "/", None))
+            .await
+            .unwrap();
+        assert!(expired.starts_with("HTTP/1.1 403"));
+        assert!(expired
+            .to_ascii_lowercase()
+            .contains("content-type: text/html; charset=utf-8"));
+        assert!(expired.contains("default-src 'none'"));
+        assert!(expired.contains("Reading session expired"));
+        assert!(expired.contains("Open reader"));
+        assert!(!expired.contains("Private note"));
 
         let bootstrap = tokio::task::spawn_blocking({
             let token = token.clone();

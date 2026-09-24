@@ -3,5 +3,13 @@
   "identifier": "default",
   "description": "The compact Note Portal controller uses only its own commands.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/blob/master/servers/desktop-windows/docs/LIBRARY_STRUCTURE.md" }
+      ]
+    }
+  ]
 }
