@@ -15,7 +15,7 @@ type Status = {
   libraryPath: string | null;
   libraryName: string | null;
   profile: Profile | null;
-  serviceState: "running" | "degraded" | "stopped";
+  serviceState: "running" | "degraded" | "starting" | "stopped";
   port: number | null;
   documentCount: number;
   diagnostics: Diagnostic[];
@@ -477,18 +477,19 @@ function renderSetup(): void {
 
 function renderStatus(): void {
   setupVisible = false;
-  const running = status.serviceState !== "stopped";
-  const label = { running: tr("运行中", "Running"), degraded: tr("运行中 · 需注意", "Running · attention needed"), stopped: tr("已停止", "Stopped") }[status.serviceState];
+  const running = status.serviceState === "running" || status.serviceState === "degraded";
+  const starting = status.serviceState === "starting";
+  const label = { running: tr("运行中", "Running"), degraded: tr("运行中 · 需注意", "Running · attention needed"), starting: tr("启动中", "Starting"), stopped: tr("已停止", "Stopped") }[status.serviceState];
   app.innerHTML = `${header(label)}
     <main class="page status-page">
       <div class="library-heading"><div><p class="eyebrow">${tr("当前资料库", "Current library")}</p><h1>${escapeHtml(status.libraryName || tr("尚未选择资料库", "No library selected"))}</h1><p class="quiet">${status.profile === "study" ? tr("学习笔记 · Study", "Study notes") : tr("普通文档 · General", "General documents")} · ${escapeHtml(status.libraryPath || "")}</p></div><span class="state-pill ${status.serviceState}">${label}</span></div>
-      <div class="stat-grid"><div><strong>${status.documentCount}</strong><span>${tr("篇笔记", "documents")}</span></div><div><strong>${status.diagnostics.length}</strong><span>${tr("个提醒", "notices")}</span></div><div><strong>${running ? tr("仅本机", "Local only") : tr("未运行", "Not running")}</strong><span>${tr("访问范围", "Access")}</span></div></div>
+      <div class="stat-grid"><div><strong>${status.documentCount}</strong><span>${tr("篇笔记", "documents")}</span></div><div><strong>${status.diagnostics.length}</strong><span>${tr("个提醒", "notices")}</span></div><div><strong>${running ? tr("仅本机", "Local only") : starting ? tr("启动中", "Starting") : tr("未运行", "Not running")}</strong><span>${tr("访问范围", "Access")}</span></div></div>
       <section class="panel tree-panel"><div class="section-heading"><h2>${tr("资料库目录", "Library tree")}</h2><span>${status.profile === "study" ? "Semester / Unit / Week" : tr("文件夹 / 文档", "Folders / documents")}</span></div><div class="tree-scroll">${treeHtml(status.tree)}</div></section>
       ${status.diagnostics.length ? `<details class="warning-details"><summary>${status.diagnostics.length} ${tr("个文件未识别 · 查看原因", "unrecognised files · view reasons")}</summary>${diagnosticsHtml(status.diagnostics)}</details>` : ""}
       ${status.error ? `<p class="message" role="alert">${escapeHtml(backendText(status.error))}</p>` : ""}
       <p class="last-refresh">${tr("上次成功刷新：", "Last successful refresh: ")}${escapeHtml(dateLabel(status.lastRefresh))}</p>
       <div class="main-actions"><button class="button primary" id="open" type="button" ${running ? "" : "disabled"}>${tr("打开阅读器", "Open reader")} ↗</button><button class="button" id="refresh" type="button" ${running ? "" : "disabled"}>${tr("立即刷新", "Refresh now")}</button><button class="button" id="folder" type="button">${tr("打开文件夹", "Open folder")}</button></div>
-      <div class="secondary-actions"><button class="text-link" id="create" type="button">${status.profile === "study" ? tr("＋ 创建 Week 模板", "+ Create Week template") : tr("＋ 创建笔记", "+ Create note")}</button><button class="text-link" id="switch" type="button">${tr("更换资料库", "Change library")}</button><button class="text-link" id="service" type="button">${running ? tr("停止服务", "Stop service") : tr("启动服务", "Start service")}</button></div>
+      <div class="secondary-actions"><button class="text-link" id="create" type="button">${status.profile === "study" ? tr("＋ 创建 Week 模板", "+ Create Week template") : tr("＋ 创建笔记", "+ Create note")}</button><button class="text-link" id="switch" type="button">${tr("更换资料库", "Change library")}</button><button class="text-link" id="service" type="button" ${starting ? "disabled" : ""}>${starting ? tr("启动中…", "Starting…") : running ? tr("停止服务", "Stop service") : tr("启动服务", "Start service")}</button></div>
       <p id="message" class="message" role="alert" hidden></p>
     </main>
     <footer class="app-footer"><button id="help" type="button">${tr("使用指南", "User guide")}</button><button id="settings" type="button">${tr("设置与条款", "Settings & terms")}</button><button id="about" type="button">${tr("关于", "About")}</button><button id="quit" type="button">${tr("退出", "Quit")}</button></footer>`;

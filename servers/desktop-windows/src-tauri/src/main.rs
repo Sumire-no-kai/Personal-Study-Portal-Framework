@@ -7,7 +7,10 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use chrono::{SecondsFormat, Utc};
@@ -164,6 +167,7 @@ struct AppState {
     startup_error: Mutex<Option<String>>,
     branding_warning: Mutex<Option<String>>,
     running: Mutex<Option<Running>>,
+    startup_in_progress: AtomicBool,
     operation: tokio::sync::Mutex<()>,
 }
 
@@ -190,6 +194,7 @@ impl AppState {
             startup_error: Mutex::new(None),
             branding_warning: Mutex::new(None),
             running: Mutex::new(None),
+            startup_in_progress: AtomicBool::new(false),
             operation: tokio::sync::Mutex::new(()),
         })
     }
@@ -403,6 +408,8 @@ async fn current_status(state: &Arc<AppState>) -> Status {
             } else {
                 "running"
             }
+        } else if state.startup_in_progress.load(Ordering::SeqCst) {
+            "starting"
         } else {
             "stopped"
         },
@@ -1417,19 +1424,22 @@ fn main() {
                     window.hide()?;
                 }
             }
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                let selection = state.settings.lock().ok().and_then(|settings| {
+            let selection =
+                state.settings.lock().ok().and_then(|settings| {
                     settings.ready().then(|| settings.library.clone()).flatten()
                 });
-                if let Some(selection) = selection {
+            if let Some(selection) = selection {
+                state.startup_in_progress.store(true, Ordering::SeqCst);
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
                     if let Err(error) = activate(&app_handle, &state, selection, !autostart).await {
                         if let Ok(mut startup_error) = state.startup_error.lock() {
                             *startup_error = Some(error);
                         }
                     }
-                }
-            });
+                    state.startup_in_progress.store(false, Ordering::SeqCst);
+                });
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -1455,6 +1465,17 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn automatic_activation_reports_starting_until_it_finishes() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::load(dir.path().join("settings.json"));
+        assert_eq!(current_status(&state).await.service_state, "stopped");
+        state.startup_in_progress.store(true, Ordering::SeqCst);
+        assert_eq!(current_status(&state).await.service_state, "starting");
+        state.startup_in_progress.store(false, Ordering::SeqCst);
+        assert_eq!(current_status(&state).await.service_state, "stopped");
+    }
 
     #[test]
     fn windows_extended_paths_are_human_readable_only_at_display_boundary() {
