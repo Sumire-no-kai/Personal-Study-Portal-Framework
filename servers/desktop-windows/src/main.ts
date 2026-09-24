@@ -219,6 +219,10 @@ function escapeHtml(value: unknown): string {
     .replaceAll("'", "&#039;");
 }
 
+function friendlyPath(value: string): string {
+  return value.replace(/^\\\\\?\\UNC\\/i, "\\\\").replace(/^\\\\\?\\/, "");
+}
+
 function dateLabel(value: string | null): string {
   if (!value) return tr("尚未刷新", "Not refreshed yet");
   const parsed = new Date(value);
@@ -420,8 +424,8 @@ function renderSetup(): void {
       </div>
       <div class="step-title"><span>2</span><strong>${tr("选择资料库", "Choose a library")}</strong></div>
       <div class="segmented" role="group" aria-label="${tr("资料库来源", "Library source")}"><button type="button" data-mode="existing" aria-pressed="${setupMode === "existing"}">${tr("使用已有文件夹", "Use existing folder")}</button><button type="button" data-mode="new" aria-pressed="${setupMode === "new"}">${tr("创建新资料库", "Create new library")}</button></div>
-      ${setupMode === "new" ? `<label class="field">${tr("资料库名称", "Library name")}<input id="library-name" value="${escapeHtml(libraryName)}" maxlength="80" autocomplete="off" /></label><p class="quiet">${tr("选择保存位置后，会在里面创建一个新文件夹：", "A new folder will be created in your chosen location: ")}${escapeHtml(libraryName)}</p>` : `<p class="quiet">${tr("选择存放笔记的最外层文件夹。Study 请选同时包含 content/ 与 inbox/ 的那一层。", "Choose the outermost folder containing your notes. For Study, choose the folder containing both content/ and inbox/.")}</p>`}
-      <div class="pick-row"><button class="button" id="pick" type="button">${setupMode === "new" ? tr("选择保存位置…", "Choose save location…") : tr("选择资料库文件夹…", "Choose library folder…")}</button><span class="picked-path">${selectedPath ? escapeHtml(selectedPath) : tr("尚未选择", "Not selected")}</span></div>
+      ${setupMode === "new" ? `<label class="field">${tr("资料库名称", "Library name")}<input id="library-name" value="${escapeHtml(libraryName)}" maxlength="80" autocomplete="off" /></label><p class="quiet">${tr("选择保存位置后，会在里面创建一个新文件夹：", "A new folder will be created in your chosen location: ")}<span id="library-name-preview">${escapeHtml(libraryName)}</span></p>` : `<p class="quiet">${tr("选择存放笔记的最外层文件夹。Study 请选同时包含 content/ 与 inbox/ 的那一层。", "Choose the outermost folder containing your notes. For Study, choose the folder containing both content/ and inbox/.")}</p>`}
+      <div class="pick-row"><button class="button" id="pick" type="button">${setupMode === "new" ? tr("选择保存位置…", "Choose save location…") : tr("选择资料库文件夹…", "Choose library folder…")}</button><span class="picked-path">${selectedPath ? escapeHtml(friendlyPath(selectedPath)) : tr("尚未选择", "Not selected")}</span></div>
       ${preview ? `<section class="preview"><div class="section-heading"><h2>${tr("识别预览", "Recognition preview")}</h2><span>${preview.documentCount} ${tr("篇文档", "documents")} · ${preview.diagnostics.length} ${tr("个提醒", "notices")}</span></div><div class="tree-scroll">${treeHtml(preview.tree)}</div>${preview.diagnostics.length ? `<details class="warning-details"><summary>${tr("查看未识别文件与原因", "Unrecognised files and reasons")}</summary>${diagnosticsHtml(preview.diagnostics)}</details>` : ""}</section>` : ""}
       <p id="message" class="message" role="alert" hidden></p>
       <div class="button-row setup-actions"><button class="text-link" id="guide" type="button">${tr("使用指南", "User guide")}</button><button class="button primary" id="continue" type="button" ${selectedPath ? "" : "disabled"}>${setupMode === "new" ? tr("创建并打开", "Create and open") : tr("确认并打开", "Confirm and open")}</button></div>
@@ -441,6 +445,8 @@ function renderSetup(): void {
   }));
   app.querySelector<HTMLInputElement>("#library-name")?.addEventListener("input", (event) => {
     libraryName = (event.target as HTMLInputElement).value;
+    const hint = app.querySelector<HTMLElement>("#library-name-preview");
+    if (hint) hint.textContent = libraryName;
   });
   app.querySelector("#pick")?.addEventListener("click", () => void action(async () => {
     const picked = await invoke<string | null>("pick_folder");
@@ -459,13 +465,6 @@ function renderSetup(): void {
     renderStatus();
   }));
   app.querySelector("#guide")?.addEventListener("click", () => void showGuide());
-}
-
-function collectFolders(nodes: TreeNode[], found: Set<string>): void {
-  for (const node of nodes) {
-    if (node.kind === "folder" && node.path) found.add(node.path);
-    collectFolders(node.children, found);
-  }
 }
 
 function renderStatus(): void {
@@ -494,18 +493,17 @@ function renderStatus(): void {
     renderStatus();
   }));
   app.querySelector("#switch")?.addEventListener("click", () => { selectedPath = ""; preview = null; renderSetup(); });
-  app.querySelector("#create")?.addEventListener("click", () => showCreate());
+  app.querySelector("#create")?.addEventListener("click", () => void action(() => showCreate()));
   app.querySelector("#help")?.addEventListener("click", () => void showGuide());
   app.querySelector("#settings")?.addEventListener("click", () => void showSettings());
   app.querySelector("#about")?.addEventListener("click", showAbout);
   app.querySelector("#quit")?.addEventListener("click", () => void invoke("quit"));
 }
 
-function showCreate(): void {
+async function showCreate(): Promise<void> {
   if (status.profile === "general") {
-    const folders = new Set<string>();
-    collectFolders(status.tree, folders);
-    const options = [...folders].sort((a, b) => a.localeCompare(b)).map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("");
+    const folders = await invoke<string[]>("list_general_folders");
+    const options = folders.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("");
     openDialog(tr("创建一篇笔记", "Create a note"), `<p class="quiet">${tr("只创建一个新的 .md 文件；已有文件不会覆盖。", "This creates one new .md file; existing files are never overwritten.")}</p><label class="field">${tr("笔记标题", "Note title")}<input id="note-title" maxlength="80" placeholder="${tr("例如：读书摘录", "e.g. Reading notes")}" /></label><label class="field">${tr("放在哪个文件夹", "Destination folder")}<select id="note-folder"><option value="">${tr("资料库最外层", "Library root")}</option>${options}</select></label><p class="path-preview" id="note-preview" aria-live="polite">${tr("输入标题以预览实际创建位置。", "Enter a title to preview the exact destination.")}</p><p id="dialog-message" class="message" role="alert" hidden></p><div class="button-row"><button class="button primary" id="submit-note" type="button" disabled>${tr("创建笔记", "Create note")}</button></div>`);
     const titleInput = dialog.querySelector<HTMLInputElement>("#note-title")!;
     const folderInput = dialog.querySelector<HTMLSelectElement>("#note-folder")!;
@@ -527,8 +525,8 @@ function showCreate(): void {
         try {
           const result = await invoke<NotePreview>("preview_note", { title, folder: folderInput.value });
           if (current !== requestId || !dialog.open) return;
-          const fullPath = `${status.libraryPath}${status.libraryPath?.endsWith("\\") ? "" : "\\"}${result.relativePath.replaceAll("/", "\\")}`;
-          target.textContent = `${tr("将创建：", "Will create: ")}${fullPath}${result.exists ? `\n${tr("同名文件已存在，不会覆盖。", "A file already exists here; it will not be overwritten.")}` : ""}`;
+          const relativePath = result.relativePath.replaceAll("/", " / ");
+          target.textContent = `${tr("将创建：", "Will create: ")}${status.libraryName || tr("资料库", "Library")} / ${relativePath}${result.exists ? `\n${tr("同名文件已存在，不会覆盖。", "A file already exists here; it will not be overwritten.")}` : ""}`;
           submit.disabled = result.exists;
         } catch (error) {
           if (current !== requestId || !dialog.open) return;
@@ -547,12 +545,25 @@ function showCreate(): void {
     }).finally(() => { if (dialog.open) updatePreview(); }));
   } else {
     openDialog(tr("创建 Week 模板", "Create Week template"), `<p class="quiet">${tr("预览并创建唯一的主笔记。不会移动或覆盖已有文件。", "Preview and create one primary note. Existing files are never moved or overwritten.")}</p><label class="field">${tr("学期", "Semester")}<input id="semester" value="2026-semester-2" /></label><label class="field">${tr("Unit 代码或短名称", "Unit code or short name")}<input id="unit" placeholder="${tr("例如：DEMO101", "e.g. DEMO101")}" /></label><div class="field-row"><label class="field">${tr("Week 数字", "Week number")}<input id="week" type="number" min="1" max="99" value="1" /></label><label class="field">${tr("合并到 Week（可选）", "Merge through Week (optional)")}<input id="end-week" type="number" min="2" max="99" /></label></div><p class="path-preview" id="week-preview"></p><p id="dialog-message" class="message" role="alert" hidden></p><div class="button-row"><button class="button primary" id="submit-week" type="button">${tr("创建主笔记", "Create primary note")}</button></div>`);
+    const submit = dialog.querySelector<HTMLButtonElement>("#submit-week")!;
+    const weekInput = dialog.querySelector<HTMLInputElement>("#week")!;
+    const endInput = dialog.querySelector<HTMLInputElement>("#end-week")!;
+    const validWeek = (value: string): number | null => {
+      const number = Number(value);
+      return value.trim() && Number.isInteger(number) && number >= 1 && number <= 99 ? number : null;
+    };
     const updatePreview = () => {
       const semester = dialog.querySelector<HTMLInputElement>("#semester")!.value;
       const unit = dialog.querySelector<HTMLInputElement>("#unit")!.value;
-      const week = Number(dialog.querySelector<HTMLInputElement>("#week")!.value);
-      const end = Number(dialog.querySelector<HTMLInputElement>("#end-week")!.value);
-      const key = end > week ? `weeks-${String(week).padStart(2, "0")}-${String(end).padStart(2, "0")}` : `week-${String(week).padStart(2, "0")}`;
+      const week = validWeek(weekInput.value);
+      const end = endInput.value.trim() ? validWeek(endInput.value) : null;
+      const valid = week !== null && (!endInput.value.trim() || (end !== null && end > week));
+      submit.disabled = !valid;
+      if (!valid) {
+        dialog.querySelector<HTMLElement>("#week-preview")!.textContent = tr("Week 必须是 1–99 的整数；合并周次必须更大。", "Use whole Week numbers from 1 to 99; the merged end must be later.");
+        return;
+      }
+      const key = end !== null ? `weeks-${String(week).padStart(2, "0")}-${String(end).padStart(2, "0")}` : `week-${String(week).padStart(2, "0")}`;
       dialog.querySelector<HTMLElement>("#week-preview")!.textContent = `content / ${semester} / ${unit || "Unit"} / ${key} / ${key}-notes.md`;
     };
     dialog.querySelectorAll("input").forEach((input) => input.addEventListener("input", updatePreview));
@@ -560,9 +571,12 @@ function showCreate(): void {
     dialog.querySelector("#submit-week")?.addEventListener("click", () => void action(async () => {
       const semester = dialog.querySelector<HTMLInputElement>("#semester")!.value;
       const unit = dialog.querySelector<HTMLInputElement>("#unit")!.value;
-      const week = Number(dialog.querySelector<HTMLInputElement>("#week")!.value);
-      const end = dialog.querySelector<HTMLInputElement>("#end-week")!.value;
-      status = await invoke<Status>("create_week", { semester, unit, week, endWeek: end ? Number(end) : null });
+      const week = validWeek(weekInput.value);
+      const end = endInput.value.trim() ? validWeek(endInput.value) : null;
+      if (week === null || (endInput.value.trim() && (end === null || end <= week))) {
+        throw new Error(tr("请输入有效的 Week 数字。", "Enter valid Week numbers."));
+      }
+      status = await invoke<Status>("create_week", { semester, unit, week, endWeek: end });
       dialog.close(); renderStatus();
     }));
   }
