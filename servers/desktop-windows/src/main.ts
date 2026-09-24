@@ -297,6 +297,13 @@ function showError(message: string): void {
   if (target) {
     target.textContent = message;
     target.hidden = false;
+  } else if (dialog.open && !dialogDismissible) {
+    const inline = document.createElement("p");
+    inline.id = "dialog-message";
+    inline.className = "message";
+    inline.setAttribute("role", "alert");
+    inline.textContent = message;
+    dialog.querySelector(".dialog-content")!.append(inline);
   } else {
     if (dialog.open) dialog.close();
     openDialog(tr("操作没有完成", "Could not complete the action"), `<p>${escapeHtml(message)}</p><button class="button primary" id="dialog-close" type="button">${tr("知道了", "OK")}</button>`);
