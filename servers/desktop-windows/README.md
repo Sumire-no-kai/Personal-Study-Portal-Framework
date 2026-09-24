@@ -113,6 +113,9 @@ Windows CI builds x64 and native ARM64 targets on separate Windows runners and
 uploads temporary architecture-labelled artifacts for review. After a PR is
 merged, a `v*-alpha.*` tag at the current `master` commit triggers a GitHub
 prerelease with both installers and `SHA256SUMS.txt` only if both jobs pass. A
+tag must match the version in the Tauri, Cargo, and npm manifests; the About
+dialog reads the packaged version so testers can identify the installed alpha.
+A version bump alone does not publish or replace an existing release. A
 PR or `master` push without that tag does not publish a release. The release
 description contains fixed installation/safety guidance plus generated change
 notes; it does not assert clean-machine compatibility. The first

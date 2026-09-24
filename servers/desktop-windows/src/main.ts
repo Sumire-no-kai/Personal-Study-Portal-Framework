@@ -497,7 +497,7 @@ function renderStatus(): void {
   app.querySelector("#create")?.addEventListener("click", () => void action(() => showCreate()));
   app.querySelector("#help")?.addEventListener("click", () => void showGuide());
   app.querySelector("#settings")?.addEventListener("click", () => void showSettings());
-  app.querySelector("#about")?.addEventListener("click", showAbout);
+  app.querySelector("#about")?.addEventListener("click", () => void showAbout());
   app.querySelector("#quit")?.addEventListener("click", () => void invoke("quit"));
 }
 
@@ -646,9 +646,14 @@ async function showSettings(): Promise<void> {
   }));
 }
 
-function showAbout(): void {
-  openDialog(tr("关于 Note Portal", "About Note Portal"), `<p>${tr("Note Portal 是一个本机 Markdown 阅读器。它不会生成 AI 内容，也不会上传你的笔记；文件始终由你保管。", "Note Portal is a local Markdown reader. It does not generate AI content or upload your notes; you remain in control of your files.")}</p><p class="quiet">${tr("版本 0.1.0 · Windows 初版", "Version 0.1.0 · Windows preview")}</p><p>${tr("如果它对你有帮助，可以自愿通过 Buy Me a Coffee 支持维护；是否支持不影响任何功能。", "If it helps you, you can support maintenance through Buy Me a Coffee. Support is optional and does not affect any feature.")}</p><button class="button" id="support" type="button">${tr("打开 Buy Me a Coffee", "Open Buy Me a Coffee")} ↗</button>`);
-  dialog.querySelector("#support")?.addEventListener("click", () => void action(() => invoke("open_support")));
+async function showAbout(): Promise<void> {
+  try {
+    const version = await invoke<string>("get_app_version");
+    openDialog(tr("关于 Note Portal", "About Note Portal"), `<p>${tr("Note Portal 是一个本机 Markdown 阅读器。它不会生成 AI 内容，也不会上传你的笔记；文件始终由你保管。", "Note Portal is a local Markdown reader. It does not generate AI content or upload your notes; you remain in control of your files.")}</p><p class="quiet">${tr("版本", "Version")} ${escapeHtml(version)} · Windows</p><p>${tr("如果它对你有帮助，可以自愿通过 Buy Me a Coffee 支持维护；是否支持不影响任何功能。", "If it helps you, you can support maintenance through Buy Me a Coffee. Support is optional and does not affect any feature.")}</p><button class="button" id="support" type="button">${tr("打开 Buy Me a Coffee", "Open Buy Me a Coffee")} ↗</button>`);
+    dialog.querySelector("#support")?.addEventListener("click", () => void action(() => invoke("open_support")));
+  } catch (error) {
+    showError(String(error));
+  }
 }
 
 async function initialize(): Promise<void> {
