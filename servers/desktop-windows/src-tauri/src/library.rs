@@ -83,7 +83,7 @@ struct Frontmatter {
     draft: Option<bool>,
 }
 
-fn is_ignored(name: &str) -> bool {
+pub(crate) fn is_ignored(name: &str) -> bool {
     name.starts_with('.')
         || matches!(name, "node_modules" | "target" | "__pycache__")
         || [".tmp", ".part", ".swp", ".bak", "~"]
@@ -1046,6 +1046,22 @@ mod tests {
         assert!(valid_component("九月笔记.md"));
         let root = tempfile::tempdir().unwrap();
         assert!(resolve_asset(root.path(), "../private.png").is_none());
+    }
+
+    #[test]
+    fn documented_cache_and_backup_names_are_ignored_consistently() {
+        let root = tempfile::tempdir().unwrap();
+        for name in ["target", "__pycache__", "node_modules"] {
+            fs::create_dir(root.path().join(name)).unwrap();
+            fs::write(root.path().join(name).join("hidden.md"), "# Hidden").unwrap();
+        }
+        fs::write(root.path().join("draft~"), "# Backup").unwrap();
+        fs::write(root.path().join("visible.md"), "# Visible").unwrap();
+        let snapshot = scan(root.path(), Profile::General, 1).unwrap();
+        assert_eq!(snapshot.documents.len(), 1);
+        assert!(general_folders(root.path()).unwrap().is_empty());
+        assert!(is_ignored("draft~"));
+        assert!(!is_ignored("target-notes"));
     }
 
     #[test]

@@ -41,6 +41,17 @@ jobs:
         working-directory: servers/desktop-windows
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check application and release versions
+        shell: pwsh
+        env:
+          NOTE_PORTAL_REF_TYPE: ${{ github.ref_type }}
+          NOTE_PORTAL_REF_NAME: ${{ github.ref_name }}
+        run: |
+          $appVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $cargoVersion = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "([^"]+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          if ($appVersion -ne $packageVersion -or $appVersion -ne $cargoVersion) { throw "Desktop version manifests differ" }
+          if ($env:NOTE_PORTAL_REF_TYPE -eq 'tag' -and $env:NOTE_PORTAL_REF_NAME -ne "v$appVersion") { throw "Release tag does not match app version" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
