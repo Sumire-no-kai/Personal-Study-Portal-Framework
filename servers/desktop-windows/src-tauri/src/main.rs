@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, State, WindowEvent,
+    AppHandle, Emitter, Manager, State, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt as AutostartExt;
 use tauri_plugin_dialog::DialogExt;
@@ -1231,6 +1231,16 @@ fn show_window(app: &AppHandle) {
     }
 }
 
+fn report_tray_error(app: &AppHandle, error: String) {
+    let state = app.state::<Arc<AppState>>();
+    if let Ok(mut visible_error) = state.startup_error.lock() {
+        *visible_error = Some(error.clone());
+    }
+    show_window(app);
+    // The event updates an already-open dialog; status retains the error if the event is missed.
+    let _ = app.emit_to("main", "note-portal-tray-error", error);
+}
+
 #[cfg(target_os = "windows")]
 fn system_language() -> &'static str {
     #[link(name = "Kernel32")]
@@ -1342,6 +1352,7 @@ fn main() {
             let icon = app.default_window_icon().ok_or("缺少应用图标")?.clone();
             TrayIconBuilder::with_id("note-portal-tray")
                 .icon(icon)
+                .tooltip("Note Portal")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -1350,21 +1361,27 @@ fn main() {
                         let app = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let state = app.state::<Arc<AppState>>();
-                            let _ = open_portal(app.clone(), state).await;
+                            if let Err(error) = open_portal(app.clone(), state).await {
+                                report_tray_error(&app, error);
+                            }
                         });
                     }
                     "start" => {
                         let app = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let state = app.state::<Arc<AppState>>();
-                            let _ = start_service(app.clone(), state, false).await;
+                            if let Err(error) = start_service(app.clone(), state, false).await {
+                                report_tray_error(&app, error);
+                            }
                         });
                     }
                     "stop" => {
                         let app = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let state = app.state::<Arc<AppState>>();
-                            let _ = stop_service(state).await;
+                            if let Err(error) = stop_service(state).await {
+                                report_tray_error(&app, error);
+                            }
                         });
                     }
                     "quit" => app.exit(0),

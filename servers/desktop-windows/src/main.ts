@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { renderMarkdown } from "./markdown";
 import "./styles.css";
 
@@ -682,4 +683,6 @@ window.setInterval(async () => {
     // The next visible action reports a concrete error; the status poll never mutates source files.
   }
 }, 2000);
+void listen<string>("note-portal-tray-error", (event) => showError(event.payload))
+  .catch((error) => showError(String(error)));
 void initialize();
