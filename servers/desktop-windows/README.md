@@ -163,7 +163,9 @@ has passed macOS static compilation and focused unit tests, but the Windows
 installer, actual window/browser behaviour, accessibility, clean-machine
 installation, signing, and resource budgets are not yet verified. The in-memory
 search snapshot currently retains Markdown bodies and rescans the whole
-library after a relevant file event. Incremental indexing, the 100 MiB
+library after a relevant file event; an image whose size and modification time
+are unchanged keeps its previous hash instead of being read again, and served
+images are still verified against that hash. Incremental indexing, the 100 MiB
 idle-memory budget for a large library, and the sub-second refresh target are
 not yet demonstrated. Do not present this as a stable public release until
 those checks and the notice's requested policy review are complete.

@@ -5,6 +5,7 @@ use std::{
     io::Read,
     path::{Component, Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 
 use chrono::{SecondsFormat, Utc};
@@ -72,6 +73,8 @@ pub struct Snapshot {
     pub diagnostics: Vec<Diagnostic>,
     pub documents: HashMap<String, Document>,
     pub asset_hashes: HashMap<String, String>,
+    // Size and modification time observed when each asset hash was recorded.
+    pub asset_stamps: HashMap<String, (u64, SystemTime)>,
 }
 
 #[derive(Default, Deserialize)]
@@ -456,14 +459,16 @@ pub fn general_folders(root: &Path) -> Result<Vec<String>, String> {
 }
 
 pub fn scan(root: &Path, profile: Profile, sequence: u64) -> Result<Snapshot, String> {
-    scan_with_previous(root, profile, sequence, None)
+    scan_with_previous(root, profile, sequence, None, &HashSet::new())
 }
 
+// `rehash` lists asset paths that must be read again even if their stamp is unchanged.
 pub fn scan_with_previous(
     root: &Path,
     profile: Profile,
     sequence: u64,
     previous: Option<&Snapshot>,
+    rehash: &HashSet<String>,
 ) -> Result<Snapshot, String> {
     if !root.is_dir() {
         return Err("资料库文件夹不存在或无法访问；请选择可读取的文件夹。".into());
@@ -478,6 +483,7 @@ pub fn scan_with_previous(
     let mut folder_metadata: HashMap<String, Frontmatter> = HashMap::new();
     let mut signature_parts = BTreeMap::new();
     let mut asset_hashes = HashMap::new();
+    let mut asset_stamps = HashMap::new();
     let mut scanned_markdown_bytes = 0u64;
     let mut entries = WalkDir::new(&root).follow_links(false).into_iter();
 
@@ -565,18 +571,37 @@ pub fn scan_with_previous(
             .iter()
             .any(|allowed| extension.eq_ignore_ascii_case(allowed))
         {
-            let bytes = match read_stable_bytes(entry.path()) {
-                Ok(bytes) => bytes,
-                Err(reason) => {
-                    diagnostics.push(diagnostic(
-                        &relative,
-                        &reason,
-                        "请检查图片文件，保存或同步完成后再刷新。",
-                    ));
-                    continue;
-                }
+            // Reading every image on each refresh made its cost grow with the library's total
+            // image size, so an unchanged size and modification time reuse the previous hash.
+            // Serving still verifies the bytes and asks for a rehash when they differ.
+            let stamp = entry
+                .metadata()
+                .ok()
+                .and_then(|meta| Some((meta.len(), meta.modified().ok()?)));
+            let reused = previous
+                .filter(|previous| {
+                    stamp.is_some()
+                        && !rehash.contains(&relative)
+                        && previous.asset_stamps.get(&relative) == stamp.as_ref()
+                })
+                .and_then(|previous| previous.asset_hashes.get(&relative).cloned());
+            let hash = match reused {
+                Some(hash) => hash,
+                None => match read_stable_bytes(entry.path()) {
+                    Ok(bytes) => blake3::hash(&bytes).to_hex().to_string(),
+                    Err(reason) => {
+                        diagnostics.push(diagnostic(
+                            &relative,
+                            &reason,
+                            "请检查图片文件，保存或同步完成后再刷新。",
+                        ));
+                        continue;
+                    }
+                },
             };
-            let hash = blake3::hash(&bytes).to_hex().to_string();
+            if let Some(stamp) = stamp {
+                asset_stamps.insert(relative.clone(), stamp);
+            }
             signature_parts.insert(relative.clone(), hash.clone());
             asset_hashes.insert(relative.clone(), hash);
             continue;
@@ -912,6 +937,7 @@ pub fn scan_with_previous(
         diagnostics,
         documents: document_map,
         asset_hashes,
+        asset_stamps,
     })
 }
 
@@ -1164,7 +1190,14 @@ mod tests {
         let previous = scan(root.path(), Profile::General, 1).unwrap();
         fs::write(root.path().join("stable.md"), "---\ntitle: Broken").unwrap();
         fs::write(root.path().join("other.md"), "# After").unwrap();
-        let next = scan_with_previous(root.path(), Profile::General, 2, Some(&previous)).unwrap();
+        let next = scan_with_previous(
+            root.path(),
+            Profile::General,
+            2,
+            Some(&previous),
+            &HashSet::new(),
+        )
+        .unwrap();
         assert_eq!(next.documents.len(), 2);
         assert!(next
             .documents
@@ -1175,6 +1208,63 @@ mod tests {
             .values()
             .any(|doc| doc.body.as_ref() == "# After"));
         assert!(next.diagnostics.iter().any(|item| item.path == "stable.md"));
+    }
+
+    #[test]
+    fn unchanged_image_stamp_reuses_hash_until_changed_or_rehashed() {
+        let root = tempfile::tempdir().unwrap();
+        let image = root.path().join("diagram.png");
+        fs::write(&image, b"first image bytes").unwrap();
+        let first = scan(root.path(), Profile::General, 1).unwrap();
+        let modified = fs::metadata(&image).unwrap().modified().unwrap();
+        let set_modified = |time| {
+            fs::OpenOptions::new()
+                .write(true)
+                .open(&image)
+                .unwrap()
+                .set_modified(time)
+                .unwrap()
+        };
+        let hash = |bytes: &[u8]| blake3::hash(bytes).to_hex().to_string();
+
+        // Same size and modification time: the previous hash is reused without reading the file.
+        fs::write(&image, b"other image bytes").unwrap();
+        set_modified(modified);
+        let reused = scan_with_previous(
+            root.path(),
+            Profile::General,
+            2,
+            Some(&first),
+            &HashSet::new(),
+        )
+        .unwrap();
+        assert_eq!(
+            reused.asset_hashes["diagram.png"],
+            hash(b"first image bytes")
+        );
+
+        let rehash = HashSet::from(["diagram.png".to_owned()]);
+        let rehashed =
+            scan_with_previous(root.path(), Profile::General, 3, Some(&reused), &rehash).unwrap();
+        assert_eq!(
+            rehashed.asset_hashes["diagram.png"],
+            hash(b"other image bytes")
+        );
+
+        fs::write(&image, b"third image bytes").unwrap();
+        set_modified(modified + std::time::Duration::from_secs(60));
+        let changed = scan_with_previous(
+            root.path(),
+            Profile::General,
+            4,
+            Some(&rehashed),
+            &HashSet::new(),
+        )
+        .unwrap();
+        assert_eq!(
+            changed.asset_hashes["diagram.png"],
+            hash(b"third image bytes")
+        );
     }
 
     #[test]
