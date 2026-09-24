@@ -476,11 +476,7 @@ fn relevant_event(
         };
         let ignored = relative.components().any(|part| {
             let name = part.as_os_str().to_string_lossy();
-            name.starts_with('.')
-                || matches!(name.as_ref(), "node_modules" | "target" | "__pycache__")
-                || [".tmp", ".part", ".swp", ".bak", "~"]
-                    .iter()
-                    .any(|suffix| name.ends_with(suffix))
+            library::is_ignored(&name)
         });
         if ignored {
             return false;
@@ -669,6 +665,9 @@ mod tests {
         let temporary = NotifyEvent::new(EventKind::Modify(ModifyKind::Data(DataChange::Content)))
             .add_path(root.join("note.md.part"));
         assert!(!relevant_event(&root, &Ok(temporary), None));
+        let cache = NotifyEvent::new(EventKind::Modify(ModifyKind::Data(DataChange::Content)))
+            .add_path(root.join("target/note.md"));
+        assert!(!relevant_event(&root, &Ok(cache), None));
         let renamed = NotifyEvent::new(EventKind::Modify(ModifyKind::Name(
             notify::event::RenameMode::Both,
         )))

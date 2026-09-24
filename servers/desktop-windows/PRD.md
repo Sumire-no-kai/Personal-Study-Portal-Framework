@@ -387,10 +387,11 @@ remain valid against the production parser.
 - Files and directories beginning with `.` are ignored.
 - Markdown files beginning with `_`, other than `_index.md`, are reserved and
   ignored in the first release.
-- Common dependency/cache directories such as `node_modules`, `.git`, and
-  `.obsidian` are ignored and do not generate warnings.
-- Temporary, backup, and partial-write suffixes such as `.tmp`, `.part`, `.swp`,
-  and `.bak` are ignored.
+- Dependency/cache directories named `node_modules`, `target`, or `__pycache__`
+  are ignored and do not generate warnings. Hidden directories such as `.git`
+  and `.obsidian` are also ignored.
+- Temporary, backup, and partial-write suffixes `.tmp`, `.part`, `.swp`, `.bak`,
+  and `~` are ignored for files and directories.
 - Symlinks that resolve outside the selected library are rejected.
 
 Documents refer to assets using relative Markdown paths. The server validates
