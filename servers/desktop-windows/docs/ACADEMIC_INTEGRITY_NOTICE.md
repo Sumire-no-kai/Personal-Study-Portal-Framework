@@ -1,6 +1,6 @@
 # Responsible Use, Privacy, and Academic Integrity Notice
 
-**Notice version:** 1.1
+**Notice version:** 1.2
 
 This document is the canonical first-release copy for the mandatory first-run
 notice and the permanent Settings entry. Product counsel or an appropriately
@@ -121,7 +121,9 @@ owner, or qualified adviser before proceeding.
 ## Implementation contract
 
 - Stable identifier: `academic-integrity-and-responsible-use`
-- Current version: `1.1`
+- Current version: `1.2`
+- The first-run checkbox stays disabled until the full notice is opened and scrolled to its end.
+- The first-use guide must be completed before library selection or service startup.
 - Required local acceptance fields: `noticeVersion`, `acceptedAt`
 - Acceptance must precede library selection, service startup, browser launch,
   filesystem watching, indexing, and launch-at-login registration.

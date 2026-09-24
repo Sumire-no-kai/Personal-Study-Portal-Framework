@@ -30,6 +30,7 @@
 !servers/desktop-windows/docs/
 !servers/desktop-windows/docs/ACADEMIC_INTEGRITY_NOTICE.md
 !servers/desktop-windows/docs/GETTING_STARTED.zh-CN.md
+!servers/desktop-windows/docs/GETTING_STARTED.en.md
 !servers/desktop-windows/docs/LIBRARY_STRUCTURE.md
 !servers/desktop-windows/docs/WINDOWS_TEST_PLAN.zh-CN.md
 !servers/desktop-windows/docs/WINDOWS_X64_TEST_RUN_2026-09-23.md
@@ -59,7 +60,13 @@
 !servers/desktop-windows/examples/study-library-template/content/2026-semester-2/DEMO101/week-01/_assets/example-diagram.svg
 !servers/desktop-windows/src/
 !servers/desktop-windows/src/main.ts
+!servers/desktop-windows/src/markdown.ts
 !servers/desktop-windows/src/styles.css
+!servers/desktop-windows/reader/
+!servers/desktop-windows/reader/index.html
+!servers/desktop-windows/reader/app.js
+!servers/desktop-windows/reader/styles.css
+!servers/desktop-windows/reader/theme-init.js
 !servers/desktop-windows/src-tauri/
 !servers/desktop-windows/src-tauri/Cargo.lock
 !servers/desktop-windows/src-tauri/Cargo.toml

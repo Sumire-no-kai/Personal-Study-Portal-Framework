@@ -44,10 +44,11 @@ the source tree. The static reader starts in a safe empty-library state; add a g
 ## Windows desktop alpha
 
 The [Windows prereleases](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)
-contain unsigned architecture-labelled `*-setup.exe` installers and a
-`SHA256SUMS.txt` checksum. The first `v0.1.0-alpha.1` release is x64-only;
-Windows on ARM testers should use a later release containing an `arm64-setup.exe`
-asset for native ARM64 validation.
+use unsigned architecture-labelled `*-setup.exe` installers and a
+`SHA256SUMS.txt` checksum when both architecture builds succeed. Check each
+release's actual assets before downloading: the first `v0.1.0-alpha.1`
+release is x64-only; a Windows on ARM device needs a later release with an
+`arm64-setup.exe` asset for native ARM64 testing.
 Use the installer, not GitHub Packages. GitHub automatically supplies source
 archives for each release. This is an alpha: a Windows clean-machine install,
 runtime behavior, accessibility, resource budgets, and signing have not yet
@@ -56,19 +57,32 @@ been verified by the maintainers. macOS packaging is planned but not released.
 The small desktop window selects a local Markdown folder, shows the recognised
 structure and diagnostics, and opens the reader in your normal browser. The
 local server watches for file changes and requires a per-launch browser session
-to read the library. The first launch requires acceptance of the responsible-use
-notice. The desktop alpha has no built-in AI service and does not upload notes.
+to read the library. On first use, the user must open and scroll through the
+full responsible-use notice, agree explicitly, then complete a short guide
+before selecting a library. The control window defaults to Chinese or English
+from the system language and has a manual switch. Windows settings offer
+reader accent colours and an optional local PNG/JPEG/WebP logo; no school
+logos are bundled. The desktop alpha has no built-in AI service and does not
+upload notes.
 See the [desktop guide](servers/desktop-windows/README.md) and
-[beginner walkthrough](servers/desktop-windows/docs/GETTING_STARTED.zh-CN.md).
+[beginner walkthrough in Chinese](servers/desktop-windows/docs/GETTING_STARTED.zh-CN.md)
+or [English](servers/desktop-windows/docs/GETTING_STARTED.en.md).
 The [Windows device test plan](servers/desktop-windows/docs/WINDOWS_TEST_PLAN.zh-CN.md)
 covers clean installation, content safety, refresh, and native ARM64 checks.
 
-For contributors, the public repository uses one canonical reader at its root.
-The desktop binary embeds only its explicitly listed public reader assets; it
-does not bundle the selected library. Windows CI tests and builds the NSIS
-installers for x64 and ARM64 on pull requests and relevant pushes. A
-`v*-alpha.*` tag at the current `master` commit publishes both installers as a
-prerelease only after both architecture jobs pass.
+For contributors, the repository-root reader is the static-site baseline.
+The Windows binary embeds the independent, content-free copy at
+`servers/desktop-windows/reader/` so desktop changes do not alter the root
+site or any separate private deployment. It never bundles a user's library.
+Windows CI tests and builds NSIS installers on x64 and native ARM64 runners
+for relevant pull requests and `master` pushes. CI artifacts are temporary
+test outputs, not a public download release. After a change is merged, a
+`v*-alpha.*` tag pointing to the current `master` commit triggers the release
+workflow; it publishes both installers and their SHA-256 checksums as a
+prerelease only if both architecture jobs pass. PR merge alone does not create
+a tag or release. Release notes combine maintained safety/install guidance
+with automatically generated change notes. Do not label a build stable until
+the Windows device matrix and clean-machine checks pass.
 
 ## Deploy the framework
 
