@@ -1,11 +1,12 @@
 # Responsible Use, Privacy, and Academic Integrity Notice
 
-**Notice version:** 1.2
+**Notice version:** 1.3
 
-This document is the canonical first-release copy for the mandatory first-run
-notice and the permanent Settings entry. Product counsel or an appropriately
-qualified reviewer should review it before a public stable release. It is not
-legal advice and must not be presented as approval from any university.
+This is an internal implementation reference. The user-facing full notices are
+[`NOTICE.zh-CN.md`](NOTICE.zh-CN.md) and [`NOTICE.en.md`](NOTICE.en.md);
+only those files are bundled for the mandatory full notice and Settings entry.
+An appropriately qualified reviewer should review them before a stable release.
+They are not legal advice or institutional approval.
 
 ## First-run concise copy — Simplified Chinese
 
@@ -121,7 +122,7 @@ owner, or qualified adviser before proceeding.
 ## Implementation contract
 
 - Stable identifier: `academic-integrity-and-responsible-use`
-- Current version: `1.2`
+- Current version: `1.3`
 - The first-run checkbox stays disabled until the full notice is opened and scrolled to its end.
 - The first-use guide must be completed before library selection or service startup.
 - Required local acceptance fields: `noticeVersion`, `acceptedAt`

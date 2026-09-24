@@ -21,12 +21,15 @@ type Status = {
   tree: TreeNode[];
   lastRefresh: string | null;
   error: string | null;
+  settingsRecoveryPath: string | null;
+  settingsBackupAvailable: boolean;
   launchAtLogin: boolean;
   themeColor: "green" | "crimson" | "blue" | "violet";
   logoSelected: boolean;
 };
 type Preview = { documentCount: number; diagnostics: Diagnostic[]; tree: TreeNode[] };
 type NotePreview = { relativePath: string; exists: boolean };
+type SettingsReset = { status: Status; backupPath: string };
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const dialog = document.querySelector<HTMLDialogElement>("#dialog")!;
@@ -38,6 +41,8 @@ let libraryName = "My Notes";
 let preview: Preview | null = null;
 let busy = false;
 let setupVisible = false;
+let noticeRead = false;
+let guideStep = 0;
 
 function initialLanguage(): Language {
   try {
@@ -162,10 +167,40 @@ function header(label: string): string {
 function wireLanguagePicker(): void {
   app.querySelector<HTMLSelectElement>("#language")?.addEventListener("change", (event) => {
     saveLanguage((event.target as HTMLSelectElement).value as Language);
-    if (!status.noticeAccepted) void showNotice();
+    if (status.settingsRecoveryPath) renderSettingsRecovery();
+    else if (!status.noticeAccepted) void showNotice();
     else if (!status.guideCompleted) showFirstRunGuide();
     else if (setupVisible || !status.libraryPath) renderSetup();
     else renderStatus();
+  });
+}
+
+function renderAfterStatus(): void {
+  if (status.settingsRecoveryPath) renderSettingsRecovery();
+  else if (!status.noticeAccepted) void showNotice();
+  else if (!status.guideCompleted) showFirstRunGuide();
+  else if (!status.libraryPath) renderSetup();
+  else renderStatus();
+}
+
+function renderSettingsRecovery(): void {
+  app.innerHTML = `${header(tr("本机设置需要恢复", "Local settings need recovery"))}<main class="page notice-page"><h1>${tr("设置文件无法读取", "Settings file could not be loaded")}</h1><p>${tr("你的笔记文件不会被删除或修改。可以先尝试恢复上一份设置；如果没有可用备份，可以把损坏的设置另存一份，再从头设置应用。", "Your notes will not be deleted or changed. First try the previous settings backup. If none is usable, preserve the damaged settings and set up the app again.")}</p><p class="message" role="alert">${escapeHtml(backendText(status.error || ""))}</p><p class="path-preview">${escapeHtml(status.settingsRecoveryPath || "")}</p><div class="button-row"><button class="button" id="restore-settings" type="button" ${status.settingsBackupAvailable ? "" : "disabled"}>${tr("恢复上一份设置", "Restore previous settings")}</button><button class="button primary" id="reset-settings" type="button">${tr("备份后重置设置", "Back up and reset settings")}</button></div><p id="message" class="message" role="alert" hidden></p></main>`;
+  wireLanguagePicker();
+  app.querySelector("#restore-settings")?.addEventListener("click", () => void action(async () => {
+    const result = await invoke<SettingsReset>("restore_settings_backup");
+    status = result.status;
+    openDialog(tr("设置已恢复", "Settings restored"), `<p>${tr("原损坏设置已另外保存在：", "The damaged settings were preserved at:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p><button class="button primary" id="continue-after-restore" type="button">${tr("继续", "Continue")}</button>`);
+    dialog.querySelector("#continue-after-restore")?.addEventListener("click", () => { dialog.close(); renderAfterStatus(); });
+  }));
+  app.querySelector("#reset-settings")?.addEventListener("click", () => {
+    openDialog(tr("确认重置本机设置", "Confirm local settings reset"), `<p>${tr("将保留一份损坏设置的备份，然后清除应用中的资料库选择、主题和启动选项。原始笔记文件不会被修改。", "The damaged settings will be backed up, then the app's library selection, theme and startup options will be cleared. Your note files will not be changed.")}</p><div class="button-row"><button class="button" id="cancel-reset" type="button">${tr("取消", "Cancel")}</button><button class="button primary" id="confirm-reset" type="button">${tr("备份并重置", "Back up and reset")}</button></div><p id="dialog-message" class="message" role="alert" hidden></p>`);
+    dialog.querySelector("#cancel-reset")?.addEventListener("click", () => dialog.close());
+    dialog.querySelector("#confirm-reset")?.addEventListener("click", () => void action(async () => {
+      const result = await invoke<SettingsReset>("reset_corrupt_settings");
+      status = result.status;
+      openDialog(tr("设置已重置", "Settings reset"), `<p>${tr("损坏设置已备份到：", "Damaged settings were backed up to:")}</p><p class="path-preview">${escapeHtml(result.backupPath)}</p><button class="button primary" id="continue-after-reset" type="button">${tr("继续首次设置", "Continue setup")}</button>`);
+      dialog.querySelector("#continue-after-reset")?.addEventListener("click", () => { dialog.close(); renderAfterStatus(); });
+    }));
   });
 }
 
@@ -208,8 +243,7 @@ function openDialog(title: string, body: string, dismissible = true): void {
 }
 
 async function showNotice(): Promise<void> {
-  const full = await invoke<string>("get_notice");
-  let fullRead = false;
+  const full = await invoke<string>("get_notice", { language });
   app.innerHTML = `${header(tr("首次使用 · 必须确认", "First use · confirmation required"))}
     <main class="page notice-page">
       <p class="eyebrow">${tr("使用前请阅读", "Read before use")}</p>
@@ -221,8 +255,8 @@ async function showNotice(): Promise<void> {
         <p>${tr("不得用本工具侵犯版权、泄露受限资料、规避学术诚信要求或从事其他违法行为。用户对导入、处理和分享的内容及使用方式负责。", "Do not use this tool to infringe copyright, disclose restricted material, evade academic-integrity rules or break the law. You are responsible for your content and how you use it.")}</p>
       </div>
       <button class="text-link" id="notice-full" type="button">${tr("查看完整使用提示、隐私说明与开源许可证", "View full notice, privacy information and open-source licences")}</button>
-      <label class="check-line"><input id="notice-check" type="checkbox" disabled /><span>${tr("我已阅读并理解完整提示，同意仅处理我有权使用的内容，并遵守适用规定。", "I have read and understood the full notice. I agree to process only content I am authorised to use and follow applicable rules.")}</span></label>
-      <p class="quiet" id="notice-requirement">${tr("请先打开完整提示并滚动到底，之后才能勾选。", "Open the full notice and scroll to the end before checking the box.")}</p>
+      <label class="check-line"><input id="notice-check" type="checkbox" ${noticeRead ? "" : "disabled"} /><span>${tr("我已阅读并理解完整提示，同意仅处理我有权使用的内容，并遵守适用规定。", "I have read and understood the full notice. I agree to process only content I am authorised to use and follow applicable rules.")}</span></label>
+      <p class="quiet" id="notice-requirement">${noticeRead ? tr("已读到完整提示末尾，现在可以勾选。", "You reached the end. You may now check the box.") : tr("请先打开完整提示并滚动到底，之后才能勾选。", "Open the full notice and scroll to the end before checking the box.")}</p>
       <p id="message" class="message" role="alert" hidden></p>
       <div class="button-row"><button class="button" id="decline" type="button">${tr("不同意并退出", "Decline and quit")}</button><button class="button primary" id="agree" type="button" disabled>${tr("同意并继续", "Agree and continue")}</button></div>
     </main>`;
@@ -235,7 +269,7 @@ async function showNotice(): Promise<void> {
       content.innerHTML = await renderMarkdown(full);
       const updateRead = () => {
         if (content.scrollTop + content.clientHeight < content.scrollHeight - 8) return;
-        fullRead = true;
+        noticeRead = true;
         const checkbox = app.querySelector<HTMLInputElement>("#notice-check")!;
         checkbox.disabled = false;
         app.querySelector<HTMLElement>("#notice-requirement")!.textContent = tr("已读到完整提示末尾，现在可以勾选。", "You reached the end. You may now check the box.");
@@ -247,11 +281,11 @@ async function showNotice(): Promise<void> {
     }
   })());
   app.querySelector<HTMLInputElement>("#notice-check")?.addEventListener("change", (event) => {
-    (app.querySelector<HTMLButtonElement>("#agree")!).disabled = !fullRead || !(event.target as HTMLInputElement).checked;
+    (app.querySelector<HTMLButtonElement>("#agree")!).disabled = !noticeRead || !(event.target as HTMLInputElement).checked;
   });
   app.querySelector("#decline")?.addEventListener("click", () => void invoke("quit"));
   app.querySelector("#agree")?.addEventListener("click", () => void action(async () => {
-    if (!fullRead || !app.querySelector<HTMLInputElement>("#notice-check")?.checked) return;
+    if (!noticeRead || !app.querySelector<HTMLInputElement>("#notice-check")?.checked) return;
     await invoke("accept_notice");
     status = await invoke<Status>("get_status");
     if (status.guideCompleted) renderSetup();
@@ -260,6 +294,7 @@ async function showNotice(): Promise<void> {
 }
 
 function showFirstRunGuide(step = 0): void {
+  guideStep = step;
   setupVisible = true;
   app.innerHTML = `${header(tr("首次使用 · 必须完成指引", "First use · guide required"))}<main class="page"><p class="eyebrow">Note Portal</p><h1>${tr("一分钟了解", "One-minute introduction")}</h1><p>${tr("请完成首次使用指引，再选择资料库。", "Complete this first-use guide before choosing a library.")}</p></main>`;
   wireLanguagePicker();
@@ -476,7 +511,7 @@ async function showGuide(introStep?: number): Promise<void> {
 
 async function showSettings(): Promise<void> {
   try {
-    const notice = await invoke<string>("get_notice");
+    const notice = await invoke<string>("get_notice", { language });
     const html = await renderMarkdown(notice);
     const colors = [
       ["green", tr("绿色", "Green")], ["crimson", tr("绯红", "Crimson")],
@@ -534,10 +569,7 @@ function showAbout(): void {
 async function initialize(): Promise<void> {
   try {
     status = await invoke<Status>("get_status");
-    if (!status.noticeAccepted) await showNotice();
-    else if (!status.guideCompleted) showFirstRunGuide();
-    else if (!status.libraryPath) renderSetup();
-    else renderStatus();
+    renderAfterStatus();
     void invoke("set_ui_language", { language }).catch((error) => showError(String(error)));
   } catch (error) {
     app.innerHTML = `${header(tr("启动失败", "Startup failed"))}<main class="page"><h1>${tr("无法读取本机状态", "Could not read local status")}</h1><p class="message">${escapeHtml(error)}</p></main>`;
@@ -549,6 +581,11 @@ dialog.addEventListener("click", (event) => {
   if (event.target === dialog && dialogDismissible) dialog.close();
 });
 dialog.addEventListener("cancel", (event) => { if (!dialogDismissible) event.preventDefault(); });
+dialog.addEventListener("close", () => {
+  if (!dialogDismissible && status?.noticeAccepted && !status.guideCompleted) {
+    queueMicrotask(() => { if (!dialog.open) showFirstRunGuide(guideStep); });
+  }
+});
 window.setInterval(async () => {
   if (document.hidden || !status?.noticeAccepted || !status.guideCompleted || setupVisible || dialog.open || busy) return;
   try {

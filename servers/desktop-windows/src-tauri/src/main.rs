@@ -5,6 +5,7 @@ mod server;
 
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -22,9 +23,10 @@ use tauri_plugin_opener::OpenerExt;
 
 use library::{Diagnostic, Profile, TreeNode};
 
-const NOTICE_VERSION: &str = "1.2";
+const NOTICE_VERSION: &str = "1.3";
 const GUIDE_VERSION: &str = "1";
-const NOTICE: &str = include_str!("../../docs/ACADEMIC_INTEGRITY_NOTICE.md");
+const NOTICE_ZH: &str = include_str!("../../docs/NOTICE.zh-CN.md");
+const NOTICE_EN: &str = include_str!("../../docs/NOTICE.en.md");
 const GUIDE: &str = include_str!("../../docs/GETTING_STARTED.zh-CN.md");
 const GUIDE_EN: &str = include_str!("../../docs/GETTING_STARTED.en.md");
 const LICENSE: &str = include_str!("../../../../LICENSE");
@@ -62,6 +64,19 @@ impl ThemeColor {
     }
 }
 
+fn saved_theme_color<'de, D>(deserializer: D) -> Result<ThemeColor, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    Ok(match value.as_str() {
+        "crimson" => ThemeColor::Crimson,
+        "blue" => ThemeColor::Blue,
+        "violet" => ThemeColor::Violet,
+        _ => ThemeColor::Green,
+    })
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Selection {
@@ -77,6 +92,7 @@ struct Settings {
     guide_version: Option<String>,
     library: Option<Selection>,
     launch_at_login: bool,
+    #[serde(deserialize_with = "saved_theme_color")]
     theme_color: ThemeColor,
     logo_file: Option<String>,
     preferred_port: Option<u16>,
@@ -103,11 +119,50 @@ struct Running {
     profile: Profile,
 }
 
+fn reject_settings_symlink(path: &Path) -> Result<(), String> {
+    match path.symlink_metadata() {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            Err("本机设置文件是符号链接；为保护数据，已拒绝写入。".into())
+        }
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err("无法检查本机设置文件；为保护数据，已拒绝写入。".into()),
+    }
+}
+
+fn write_atomic_settings(path: &Path, content: &[u8]) -> Result<(), String> {
+    reject_settings_symlink(path)?;
+    let parent = path.parent().ok_or("设置路径无效。")?;
+    let mut random = [0u8; 12];
+    getrandom::fill(&mut random).map_err(|_| "无法创建临时设置文件名。")?;
+    let suffix: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+    let temporary = parent.join(format!(".settings-{suffix}.tmp"));
+    let result = (|| -> Result<(), String> {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .map_err(|_| "无法创建临时设置文件。".to_owned())?;
+        file.write_all(content)
+            .and_then(|_| file.sync_all())
+            .map_err(|_| "无法完整写入临时设置文件。".to_owned())?;
+        drop(file);
+        reject_settings_symlink(path)?;
+        fs::rename(&temporary, path).map_err(|_| "无法安全替换本机设置文件。".to_owned())
+    })();
+    if result.is_err() && temporary.exists() {
+        fs::remove_file(&temporary)
+            .map_err(|_| "写入设置失败，且临时设置文件无法清理。".to_owned())?;
+    }
+    result
+}
+
 struct AppState {
     settings_path: PathBuf,
     settings: Mutex<Settings>,
-    settings_error: Option<String>,
+    settings_error: Mutex<Option<String>>,
     startup_error: Mutex<Option<String>>,
+    branding_warning: Mutex<Option<String>>,
     running: Mutex<Option<Running>>,
     operation: tokio::sync::Mutex<()>,
 }
@@ -131,8 +186,9 @@ impl AppState {
         Arc::new(Self {
             settings_path,
             settings: Mutex::new(settings),
-            settings_error,
+            settings_error: Mutex::new(settings_error),
             startup_error: Mutex::new(None),
+            branding_warning: Mutex::new(None),
             running: Mutex::new(None),
             operation: tokio::sync::Mutex::new(()),
         })
@@ -149,12 +205,99 @@ impl AppState {
             return Err("本机设置文件是符号链接；为保护数据，已拒绝写入。".into());
         }
         let content = serde_json::to_vec_pretty(settings).map_err(|_| "无法保存本机设置。")?;
-        fs::write(&self.settings_path, content)
-            .map_err(|_| "无法写入本机设置；请检查磁盘和权限。".to_owned())
+        reject_settings_symlink(&self.settings_path)?;
+        let backup = self.settings_path.with_extension("json.bak");
+        if self.settings_path.exists() {
+            let previous = fs::read(&self.settings_path)
+                .map_err(|_| "无法读取当前设置，已保留原文件。".to_owned())?;
+            if serde_json::from_slice::<Settings>(&previous).is_ok() {
+                write_atomic_settings(&backup, &previous)?;
+            }
+        }
+        write_atomic_settings(&self.settings_path, &content)
+    }
+
+    fn has_settings_error(&self) -> bool {
+        self.settings_error
+            .lock()
+            .map(|error| error.is_some())
+            .unwrap_or(true)
+    }
+
+    fn preserve_damaged_settings(&self) -> Result<PathBuf, String> {
+        reject_settings_symlink(&self.settings_path)?;
+        let bytes = fs::read(&self.settings_path)
+            .map_err(|_| "无法备份损坏的设置；尚未恢复或重置。".to_owned())?;
+        if bytes.len() > 8 * 1024 * 1024 {
+            return Err("设置文件过大；请先人工检查，尚未恢复或重置。".into());
+        }
+        let mut random = [0u8; 12];
+        getrandom::fill(&mut random).map_err(|_| "无法创建设置备份名称。")?;
+        let suffix: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+        let backup = self
+            .settings_path
+            .with_extension(format!("corrupt-{suffix}.json"));
+        let result = (|| -> Result<(), String> {
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&backup)
+                .map_err(|_| "无法创建损坏设置的备份；尚未恢复或重置。".to_owned())?;
+            file.write_all(&bytes)
+                .and_then(|_| file.sync_all())
+                .map_err(|_| "无法完整备份损坏的设置；尚未恢复或重置。".to_owned())
+        })();
+        if let Err(error) = result {
+            if backup.exists() {
+                fs::remove_file(&backup)
+                    .map_err(|_| "损坏设置的备份未完成，且临时备份无法清理。".to_owned())?;
+            }
+            return Err(error);
+        }
+        Ok(backup)
+    }
+
+    fn restore_settings_backup(&self) -> Result<PathBuf, String> {
+        if !self.has_settings_error() {
+            return Err("本机设置无需恢复。".into());
+        }
+        let backup = self.settings_path.with_extension("json.bak");
+        reject_settings_symlink(&backup)?;
+        if !backup
+            .metadata()
+            .is_ok_and(|meta| meta.is_file() && meta.len() <= 8 * 1024 * 1024)
+        {
+            return Err("设置备份无效或过大。".into());
+        }
+        let bytes = fs::read(&backup).map_err(|_| "无法读取设置备份。".to_owned())?;
+        let restored: Settings = serde_json::from_slice(&bytes)
+            .map_err(|_| "设置备份也已损坏；请改用备份后重置。".to_owned())?;
+        let damaged = self.preserve_damaged_settings()?;
+        write_atomic_settings(&self.settings_path, &bytes)?;
+        *self.settings.lock().map_err(|_| "本机设置暂时不可用。")? = restored;
+        *self
+            .settings_error
+            .lock()
+            .map_err(|_| "本机设置暂时不可用。")? = None;
+        Ok(damaged)
+    }
+
+    fn reset_corrupt_settings(&self) -> Result<PathBuf, String> {
+        if !self.has_settings_error() {
+            return Err("本机设置无需重置。".into());
+        }
+        let backup = self.preserve_damaged_settings()?;
+        self.save(&Settings::default())?;
+        *self.settings.lock().map_err(|_| "本机设置暂时不可用。")? = Settings::default();
+        *self
+            .settings_error
+            .lock()
+            .map_err(|_| "本机设置暂时不可用。")? = None;
+        Ok(backup)
     }
 
     fn ensure_ready(&self) -> Result<(), String> {
-        if self.settings_error.is_some() {
+        if self.has_settings_error() {
             return Err("本机设置需要人工检查，不能继续使用旧的资料库。".into());
         }
         let settings = self.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
@@ -185,12 +328,31 @@ struct Status {
     tree: Vec<TreeNode>,
     last_refresh: Option<String>,
     error: Option<String>,
+    settings_recovery_path: Option<String>,
+    settings_backup_available: bool,
     launch_at_login: bool,
     theme_color: ThemeColor,
     logo_selected: bool,
 }
 
 async fn current_status(state: &Arc<AppState>) -> Status {
+    let settings_error = state
+        .settings_error
+        .lock()
+        .ok()
+        .and_then(|error| error.clone());
+    let settings_recovery_path = settings_error
+        .as_ref()
+        .map(|_| state.settings_path.to_string_lossy().into_owned());
+    let backup = state.settings_path.with_extension("json.bak");
+    let settings_backup_available = settings_error.is_some()
+        && reject_settings_symlink(&backup).is_ok()
+        && backup
+            .metadata()
+            .is_ok_and(|meta| meta.is_file() && meta.len() <= 8 * 1024 * 1024)
+        && fs::read(&backup)
+            .ok()
+            .is_some_and(|bytes| serde_json::from_slice::<Settings>(&bytes).is_ok());
     let settings = state
         .settings
         .lock()
@@ -249,13 +411,24 @@ async fn current_status(state: &Arc<AppState>) -> Status {
         diagnostics,
         tree,
         last_refresh,
-        error: state.settings_error.clone().or(runtime_error).or_else(|| {
-            state
-                .startup_error
-                .lock()
-                .ok()
-                .and_then(|error| error.clone())
-        }),
+        error: settings_error
+            .or(runtime_error)
+            .or_else(|| {
+                state
+                    .branding_warning
+                    .lock()
+                    .ok()
+                    .and_then(|warning| warning.clone())
+            })
+            .or_else(|| {
+                state
+                    .startup_error
+                    .lock()
+                    .ok()
+                    .and_then(|error| error.clone())
+            }),
+        settings_recovery_path,
+        settings_backup_available,
         launch_at_login: settings.launch_at_login,
         theme_color: settings.theme_color,
         logo_selected: settings.logo_file.is_some(),
@@ -267,9 +440,40 @@ async fn get_status(state: State<'_, Arc<AppState>>) -> Result<Status, String> {
     Ok(current_status(state.inner()).await)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsReset {
+    status: Status,
+    backup_path: String,
+}
+
 #[tauri::command]
-fn get_notice() -> String {
-    format!("{NOTICE}\n\n## Open-source license\n\n{LICENSE}\n\nThe bundled Marked and KaTeX packages retain their MIT licenses in the reader's vendor directory.")
+async fn restore_settings_backup(state: State<'_, Arc<AppState>>) -> Result<SettingsReset, String> {
+    let _operation = state.operation.lock().await;
+    let backup = state.restore_settings_backup()?;
+    Ok(SettingsReset {
+        status: current_status(state.inner()).await,
+        backup_path: backup.to_string_lossy().into_owned(),
+    })
+}
+
+#[tauri::command]
+async fn reset_corrupt_settings(state: State<'_, Arc<AppState>>) -> Result<SettingsReset, String> {
+    let _operation = state.operation.lock().await;
+    let backup = state.reset_corrupt_settings()?;
+    Ok(SettingsReset {
+        status: current_status(state.inner()).await,
+        backup_path: backup.to_string_lossy().into_owned(),
+    })
+}
+
+#[tauri::command]
+fn get_notice(language: String) -> String {
+    if language == "en" {
+        format!("{NOTICE_EN}\n\n## Project licence text\n\n{LICENSE}")
+    } else {
+        format!("{NOTICE_ZH}\n\n## 项目许可证原文\n\n{LICENSE}")
+    }
 }
 
 #[tauri::command]
@@ -283,7 +487,7 @@ fn get_guide(language: String) -> &'static str {
 
 #[tauri::command]
 fn accept_notice(state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    if state.settings_error.is_some() {
+    if state.has_settings_error() {
         return Err("本机设置已损坏。请先备份并人工检查设置文件。".into());
     }
     let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
@@ -297,7 +501,7 @@ fn accept_notice(state: State<'_, Arc<AppState>>) -> Result<(), String> {
 
 #[tauri::command]
 fn complete_guide(state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    if state.settings_error.is_some() {
+    if state.has_settings_error() {
         return Err("本机设置已损坏。请先备份并人工检查设置文件。".into());
     }
     let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
@@ -373,6 +577,24 @@ fn branding_from_settings(
     })
 }
 
+fn branding_with_optional_logo(
+    settings_path: &Path,
+    settings: &Settings,
+) -> (server::Branding, Option<String>) {
+    match branding_from_settings(settings_path, settings) {
+        Ok(branding) => (branding, None),
+        Err(reason) => (
+            server::Branding {
+                color: settings.theme_color.css(),
+                logo: None,
+            },
+            Some(format!(
+                "{reason} 已改用文字标识；请在设置中重新选择或清除 Logo。"
+            )),
+        ),
+    }
+}
+
 async fn update_live_branding(
     state: &Arc<AppState>,
     branding: server::Branding,
@@ -396,16 +618,20 @@ async fn set_theme_color(
 ) -> Result<Status, String> {
     state.ensure_ready()?;
     let _operation = state.operation.lock().await;
-    let branding = {
+    let (branding, warning) = {
         let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
         let mut next = settings.clone();
         next.theme_color = theme_color;
-        let branding = branding_from_settings(&state.settings_path, &next)?;
+        let (branding, warning) = branding_with_optional_logo(&state.settings_path, &next);
         state.save(&next)?;
         *settings = next;
-        branding
+        (branding, warning)
     };
     update_live_branding(state.inner(), branding).await?;
+    *state
+        .branding_warning
+        .lock()
+        .map_err(|_| "本机设置暂时不可用。")? = warning;
     Ok(current_status(state.inner()).await)
 }
 
@@ -460,6 +686,10 @@ async fn set_brand_logo(state: State<'_, Arc<AppState>>, bytes: Vec<u8>) -> Resu
         }
     };
     update_live_branding(state.inner(), branding).await?;
+    *state
+        .branding_warning
+        .lock()
+        .map_err(|_| "本机设置暂时不可用。")? = None;
     if let Some(old) = old {
         let old_path = logo_path(&state.settings_path, &old)?;
         match fs::remove_file(old_path) {
@@ -488,6 +718,10 @@ async fn clear_brand_logo(state: State<'_, Arc<AppState>>) -> Result<Status, Str
         (old, branding)
     };
     update_live_branding(state.inner(), branding).await?;
+    *state
+        .branding_warning
+        .lock()
+        .map_err(|_| "本机设置暂时不可用。")? = None;
     if let Some(old) = old {
         let old_path = logo_path(&state.settings_path, &old)?;
         match fs::remove_file(old_path) {
@@ -595,7 +829,7 @@ async fn activate(
         .lock()
         .map_err(|_| "本机设置暂时不可用。")?
         .clone();
-    let branding = branding_from_settings(&state.settings_path, &existing_settings)?;
+    let (branding, warning) = branding_with_optional_logo(&state.settings_path, &existing_settings);
     let replacing_service = state
         .running
         .lock()
@@ -643,6 +877,9 @@ async fn activate(
     if let Ok(mut startup_error) = state.startup_error.lock() {
         *startup_error = None;
     }
+    if let Ok(mut branding_warning) = state.branding_warning.lock() {
+        *branding_warning = warning;
+    }
     if open_browser && app.opener().open_url(browser_url, None::<&str>).is_err() {
         *last_error.write().await =
             Some("服务已经启动，但无法自动打开浏览器。请点击“打开阅读器”重试。".into());
@@ -685,12 +922,6 @@ async fn create_library(
     profile: Profile,
 ) -> Result<Status, String> {
     state.ensure_ready()?;
-    let settings = state
-        .settings
-        .lock()
-        .map_err(|_| "本机设置暂时不可用。")?
-        .clone();
-    branding_from_settings(&state.settings_path, &settings)?;
     validate_name(&name)?;
     let parent = PathBuf::from(parent)
         .canonicalize()
@@ -1075,6 +1306,8 @@ fn main() {
         )
         .invoke_handler(tauri::generate_handler![
             get_status,
+            restore_settings_backup,
+            reset_corrupt_settings,
             get_notice,
             get_guide,
             accept_notice,
@@ -1211,6 +1444,91 @@ mod tests {
     }
 
     #[test]
+    fn bundled_notices_are_localised_user_copy_without_internal_contract() {
+        let chinese = get_notice("zh".into());
+        let english = get_notice("en".into());
+        assert!(chinese.contains("本机处理与隐私"));
+        assert!(english.contains("Local processing and privacy"));
+        for notice in [chinese, english] {
+            assert!(notice.contains("1.3"));
+            assert!(!notice.contains("Implementation contract"));
+            assert!(!notice.contains("Required local acceptance fields"));
+        }
+    }
+
+    #[test]
+    fn settings_backup_can_restore_and_corrupt_file_can_be_preserved_before_reset() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let state = AppState::load(path.clone());
+        let first = Settings {
+            guide_version: Some("1".into()),
+            ..Settings::default()
+        };
+        state.save(&first).unwrap();
+        let mut second = first.clone();
+        second.launch_at_login = true;
+        state.save(&second).unwrap();
+        let backup: Settings =
+            serde_json::from_slice(&fs::read(path.with_extension("json.bak")).unwrap()).unwrap();
+        assert!(!backup.launch_at_login);
+
+        fs::write(&path, b"{broken").unwrap();
+        let damaged = AppState::load(path.clone());
+        assert!(damaged.has_settings_error());
+        damaged.restore_settings_backup().unwrap();
+        assert!(!damaged.has_settings_error());
+        assert_eq!(
+            damaged.settings.lock().unwrap().guide_version.as_deref(),
+            Some("1")
+        );
+
+        fs::write(&path, b"{broken again").unwrap();
+        let damaged = AppState::load(path.clone());
+        let preserved = damaged.reset_corrupt_settings().unwrap();
+        assert_eq!(fs::read(preserved).unwrap(), b"{broken again");
+        assert!(!damaged.has_settings_error());
+        let reset: Settings = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert!(reset.library.is_none());
+    }
+
+    #[test]
+    fn unknown_saved_theme_uses_safe_default() {
+        let settings: Settings =
+            serde_json::from_str(r#"{"themeColor":"new-future-colour"}"#).unwrap();
+        assert!(matches!(settings.theme_color, ThemeColor::Green));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn settings_save_refuses_symlink_without_touching_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("outside.json");
+        fs::write(&target, "untouched").unwrap();
+        let path = dir.path().join("settings.json");
+        std::os::unix::fs::symlink(&target, &path).unwrap();
+        let state = AppState::load(path);
+        assert!(state.save(&Settings::default()).is_err());
+        assert_eq!(fs::read_to_string(target).unwrap(), "untouched");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn settings_backup_refuses_symlink_without_touching_primary_or_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let state = AppState::load(path.clone());
+        state.save(&Settings::default()).unwrap();
+        let original = fs::read(&path).unwrap();
+        let target = dir.path().join("outside.json");
+        fs::write(&target, "untouched").unwrap();
+        std::os::unix::fs::symlink(&target, path.with_extension("json.bak")).unwrap();
+        assert!(state.save(&Settings::default()).is_err());
+        assert_eq!(fs::read(&path).unwrap(), original);
+        assert_eq!(fs::read_to_string(target).unwrap(), "untouched");
+    }
+
+    #[test]
     fn general_note_preview_uses_the_creation_path() {
         let library = tempfile::tempdir().unwrap();
         fs::create_dir(library.path().join("reading")).unwrap();
@@ -1270,5 +1588,20 @@ mod tests {
         let brand = branding_from_settings(&settings_path, &settings).unwrap();
         assert_eq!(brand.color, "#165e91");
         assert_eq!(brand.logo.unwrap().mime, "image/png");
+    }
+
+    #[test]
+    fn missing_optional_logo_falls_back_to_text_and_keeps_colour() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings_path = dir.path().join("settings.json");
+        let settings = Settings {
+            theme_color: ThemeColor::Blue,
+            logo_file: Some("brand-logo-0123456789abcdef01234567.png".into()),
+            ..Settings::default()
+        };
+        let (branding, warning) = branding_with_optional_logo(&settings_path, &settings);
+        assert_eq!(branding.color, "#165e91");
+        assert!(branding.logo.is_none());
+        assert!(warning.is_some());
     }
 }
