@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     convert::Infallible,
     net::SocketAddr,
     path::PathBuf,
@@ -69,6 +70,8 @@ struct WebState {
     last_error: Arc<RwLock<Option<String>>>,
     branding: Arc<RwLock<Branding>>,
     stopping: watch::Receiver<bool>,
+    // Assets whose served bytes no longer matched the snapshot; the next scan reads them again.
+    stale_assets: Arc<std::sync::Mutex<HashSet<String>>>,
 }
 
 pub struct Service {
@@ -336,6 +339,21 @@ async fn document(State(state): State<WebState>, Path(id): Path<String>) -> Resp
     }
 }
 
+// Scans reuse the hash of an image whose size and modification time are unchanged, so a content
+// mismatch or read failure while serving schedules a scan that reads that image again.
+fn request_rehash(state: &WebState, path: String) {
+    let newly_stale = state
+        .stale_assets
+        .lock()
+        .is_ok_and(|mut stale| stale.insert(path));
+    if newly_stale {
+        let handle = WebHandle(state.clone());
+        tokio::spawn(async move {
+            let _ = refresh(&handle).await;
+        });
+    }
+}
+
 async fn asset(State(state): State<WebState>, Path(path): Path<String>) -> Response {
     let expected_hash = {
         let snapshot = state.snapshot.read().await;
@@ -348,9 +366,11 @@ async fn asset(State(state): State<WebState>, Path(path): Path<String>) -> Respo
         return StatusCode::NOT_FOUND.into_response();
     };
     let Ok(bytes) = library::read_stable_bytes(&asset) else {
+        request_rehash(&state, path);
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
     if blake3::hash(&bytes).to_hex().as_str() != expected_hash {
+        request_rehash(&state, path);
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
     let mime = mime_guess::from_path(&asset).first_or_octet_stream();
@@ -444,14 +464,24 @@ pub async fn refresh(state: &WebHandle) -> Result<bool, String> {
     let root = current.root.clone();
     let profile = current.profile;
     let previous = current.snapshot.read().await.clone();
+    let rehash = current
+        .stale_assets
+        .lock()
+        .map(|stale| stale.clone())
+        .unwrap_or_default();
     let sequence = current.sequence.fetch_add(1, Ordering::SeqCst) + 1;
-    let staged = tokio::task::spawn_blocking(move || {
-        library::scan_with_previous(&root, profile, sequence, Some(&previous))
+    let staged = tokio::task::spawn_blocking({
+        let rehash = rehash.clone();
+        move || library::scan_with_previous(&root, profile, sequence, Some(&previous), &rehash)
     })
     .await
     .map_err(|_| "扫描任务意外中断；当前阅读内容保持不变。".to_owned())?;
     match staged {
         Ok(mut snapshot) => {
+            // Only a completed scan has reread these assets; a failed one leaves them queued.
+            if let Ok(mut stale) = current.stale_assets.lock() {
+                stale.retain(|path| !rehash.contains(path));
+            }
             let mut active = current.snapshot.write().await;
             if active.signature == snapshot.signature {
                 *current.last_error.write().await = None;
@@ -572,6 +602,7 @@ pub async fn start(
         last_error: Arc::new(RwLock::new(None)),
         branding: Arc::new(RwLock::new(branding)),
         stopping: stopping_rx,
+        stale_assets: Arc::new(std::sync::Mutex::new(HashSet::new())),
     };
     let router = Router::new()
         .route("/", get(index))
@@ -675,6 +706,7 @@ mod tests {
                 logo: None,
             })),
             stopping: watch::channel(false).1,
+            stale_assets: Arc::new(std::sync::Mutex::new(HashSet::new())),
         })
     }
 
@@ -1022,5 +1054,42 @@ mod tests {
             .diagnostics
             .iter()
             .any(|item| item.path == "misplaced.md"));
+    }
+
+    #[tokio::test]
+    async fn stale_image_is_withheld_then_rehashed_by_the_next_refresh() {
+        let root = tempfile::tempdir().unwrap();
+        let image = root.path().join("diagram.png");
+        fs::write(&image, b"first image bytes").unwrap();
+        let handle = test_handle(root.path(), Profile::General);
+        let modified = fs::metadata(&image).unwrap().modified().unwrap();
+        fs::write(&image, b"other image bytes").unwrap();
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&image)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
+
+        // An unchanged size and modification time let the scan keep the stale hash.
+        assert!(!refresh(&handle).await.unwrap());
+        let stale = asset(State(handle.0.clone()), Path("diagram.png".into())).await;
+        assert_eq!(stale.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(handle
+            .0
+            .stale_assets
+            .lock()
+            .unwrap()
+            .contains("diagram.png"));
+
+        // The request also queued a refresh; whichever runs first rereads the image.
+        refresh(&handle).await.unwrap();
+        assert!(handle.0.stale_assets.lock().unwrap().is_empty());
+        let fresh = asset(State(handle.0.clone()), Path("diagram.png".into())).await;
+        assert_eq!(fresh.status(), StatusCode::OK);
+        assert_eq!(
+            axum::body::to_bytes(fresh.into_body(), 100).await.unwrap(),
+            b"other image bytes".as_slice()
+        );
     }
 }
