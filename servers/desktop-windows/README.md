@@ -159,13 +159,16 @@ generated manifests, course configuration and indexes, and any credential.
 ## Alpha limitations
 
 The [PRD](PRD.md) defines the stable-release acceptance criteria. Formatting,
-unit tests and Clippy run on native Windows x64 and ARM64 CI runners, and
-Windows alpha builds were installed and exercised on one x64 PC and one Windows
-on ARM device (see the [test plan](docs/WINDOWS_TEST_PLAN.zh-CN.md), the
-[alpha.3 x64 test record](docs/WINDOWS_X64_TEST_RUN_2026-09-25_ALPHA3.md), and
-the [earlier x64 record](docs/WINDOWS_X64_TEST_RUN_2026-09-23.md)). Clean-machine
-installation, accessibility, signing, resource budgets and tray-icon visibility
-across devices are not yet verified. The in-memory
+unit tests and Clippy run on native Windows x64 and ARM64 CI runners.
+Before release, 0.1.1-alpha.1 was installed over an earlier alpha on one x64 PC
+and one Windows on ARM device and passed every required item of the
+[pre-release checklist](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/44),
+including the tray icon on both devices. The checklist's optional items were
+not run on those devices. The [test plan](docs/WINDOWS_TEST_PLAN.zh-CN.md) holds
+the ARM64 records and links every x64 record, the latest being the
+[0.1.1-alpha.1 x64 retest](docs/WINDOWS_X64_TEST_RUN_2026-09-25_ISSUE44_RETEST.md).
+Clean-machine installation, accessibility, signing and resource budgets are not
+yet verified. The in-memory
 search snapshot currently retains Markdown bodies and rescans the whole
 library after a relevant file event; an image whose size and modification time
 are unchanged keeps its previous hash instead of being read again, and served
