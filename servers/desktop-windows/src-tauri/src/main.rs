@@ -135,6 +135,15 @@ fn reject_settings_symlink(path: &Path) -> Result<(), String> {
 }
 
 fn write_atomic_settings(path: &Path, content: &[u8]) -> Result<(), String> {
+    replace_settings_file(path, content, |from, to| fs::rename(from, to))
+}
+
+// The rename step is a parameter so tests can refuse it the way some Windows setups do.
+fn replace_settings_file(
+    path: &Path,
+    content: &[u8],
+    rename: impl Fn(&Path, &Path) -> std::io::Result<()>,
+) -> Result<(), String> {
     reject_settings_symlink(path)?;
     let parent = path.parent().ok_or("设置路径无效。")?;
     let mut random = [0u8; 12];
@@ -152,11 +161,30 @@ fn write_atomic_settings(path: &Path, content: &[u8]) -> Result<(), String> {
             .map_err(|_| "无法完整写入临时设置文件。".to_owned())?;
         drop(file);
         reject_settings_symlink(path)?;
-        fs::rename(&temporary, path).map_err(|_| "无法安全替换本机设置文件。".to_owned())
+        if rename(&temporary, path).is_ok() {
+            return Ok(());
+        }
+        // Some Windows setups refuse to rename over the settings file (a tester's encrypted
+        // settings folder returned ERROR_NOT_SAME_DEVICE). Overwrite it in place, as alpha.3 did:
+        // save() has already kept the previous settings in settings.json.bak, and a torn file is
+        // caught at load, where the recovery page can restore that backup.
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .map_err(|_| "无法安全替换本机设置文件。".to_owned())?;
+        file.write_all(content)
+            .and_then(|_| file.sync_all())
+            .map_err(|_| "无法安全替换本机设置文件。".to_owned())
     })();
-    if result.is_err() && temporary.exists() {
-        fs::remove_file(&temporary)
-            .map_err(|_| "写入设置失败，且临时设置文件无法清理。".to_owned())?;
+    if temporary.exists() {
+        let cleanup = fs::remove_file(&temporary);
+        // After an in-place overwrite the settings are saved, so a hidden leftover temporary
+        // file must not turn that into a reported failure.
+        if result.is_err() && cleanup.is_err() {
+            return Err("写入设置失败，且临时设置文件无法清理。".to_owned());
+        }
     }
     result
 }
@@ -1581,6 +1609,25 @@ mod tests {
         let settings: Settings =
             serde_json::from_str(r#"{"themeColor":"new-future-colour"}"#).unwrap();
         assert!(matches!(settings.theme_color, ThemeColor::Green));
+    }
+
+    #[test]
+    fn settings_write_overwrites_in_place_when_rename_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let refuse = |_: &Path, _: &Path| Err(std::io::Error::other("rename refused"));
+        let existing = dir.path().join("settings.json");
+        fs::write(&existing, "old").unwrap();
+        replace_settings_file(&existing, b"new", refuse).unwrap();
+        assert_eq!(fs::read_to_string(&existing).unwrap(), "new");
+        let fresh = dir.path().join("settings.json.bak");
+        replace_settings_file(&fresh, b"first", refuse).unwrap();
+        assert_eq!(fs::read_to_string(&fresh).unwrap(), "first");
+        let mut names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["settings.json", "settings.json.bak"]);
     }
 
     #[cfg(unix)]
