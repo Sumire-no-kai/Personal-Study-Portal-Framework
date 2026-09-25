@@ -1446,12 +1446,13 @@ function applyPortalUpdate(latestPortalData) {
   document.body.classList.toggle("profile-general", portalData.profile === "general");
   renderPortalIdentity();
 
+  const openNoteId = state.view === "note" ? state.activeNoteId : null;
   const requestedNoteId = getNoteIdFromHash();
   if (requestedNoteId) state.activeNoteId = requestedNoteId;
   const activeNote = flatNotes.find((note) => note.id === state.activeNoteId);
   if ((state.view === "note" || requestedNoteId) && activeNote) {
     renderNavigation();
-    renderNote(activeNote, { restoreScroll: true });
+    renderNote(activeNote, { restoreScroll: true, keepCurrentArticle: activeNote.id === openNoteId });
     return;
   }
   if (!activeNote) state.activeNoteId = getLatestNote()?.id;
@@ -1868,8 +1869,22 @@ function openNote(noteId, options = {}) {
   return renderPromise;
 }
 
+async function loadNoteMarkdown(note) {
+  const response = await fetch(note.path, { cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.text();
+}
+
 async function renderNote(note, options = {}) {
   const renderSequence = ++noteRenderSequence;
+  let refreshedMarkdown = null;
+  if (options.keepCurrentArticle) {
+    // A live refresh keeps the open article until its new text arrives. Swapping in the loading
+    // placeholder first collapses the page, and a scroll save during that gap records the top.
+    refreshedMarkdown = await loadNoteMarkdown(note).catch(() => null);
+    if (renderSequence !== noteRenderSequence || state.view !== "note" || state.activeNoteId !== note.id) return;
+    saveScrollPosition();
+  }
   hideSelectionAskAi();
   cleanupTocTracking();
   clearLastReadPresentation();
@@ -1955,9 +1970,7 @@ async function renderNote(note, options = {}) {
     button.addEventListener("click", () => openNote(button.dataset.noteId));
   });
   try {
-    const response = await fetch(note.path, { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const markdown = await response.text();
+    const markdown = refreshedMarkdown ?? await loadNoteMarkdown(note);
     if (renderSequence !== noteRenderSequence || state.activeNoteId !== note.id) return;
 
     const article = viewRoot.querySelector("#markdown-article");
