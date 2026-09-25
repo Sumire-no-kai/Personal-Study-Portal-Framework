@@ -108,6 +108,8 @@ Choose **Bug report** or **Feature request or feedback** on the
 The bug form asks for the version shown in **About**, your Windows version,
 processor type and steps to reproduce. Do not include note contents, private
 file paths, reader links with session tokens, or course or assessment material.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for a short guide to reporting bugs,
+suggesting changes and proposing a pull request.
 
 ### For contributors
 
@@ -210,6 +212,12 @@ AI/RAG artifacts in a private deployment.
 The vendored copies of Marked and KaTeX retain their upstream MIT license
 files under `vendor/`. Their notices apply to those dependencies; this
 repository's own code is available under the MIT License.
+
+## Support
+
+If this project is useful to you, you can optionally support its maintenance
+through [Buy Me a Coffee](https://buymeacoffee.com/edward_lee). Supporting is
+entirely voluntary and does not affect access to the framework or app.
 
 ## License
 
