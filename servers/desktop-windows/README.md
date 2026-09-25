@@ -160,9 +160,10 @@ generated manifests, course configuration and indexes, and any credential.
 
 The [PRD](PRD.md) defines the stable-release acceptance criteria. Formatting,
 unit tests and Clippy run on native Windows x64 and ARM64 CI runners, and
-earlier alpha builds were installed and exercised on one x64 PC and one Windows
-on ARM device (see the [test plan](docs/WINDOWS_TEST_PLAN.zh-CN.md) and the
-[x64 test record](docs/WINDOWS_X64_TEST_RUN_2026-09-23.md)). Clean-machine
+Windows alpha builds were installed and exercised on one x64 PC and one Windows
+on ARM device (see the [test plan](docs/WINDOWS_TEST_PLAN.zh-CN.md), the
+[alpha.3 x64 test record](docs/WINDOWS_X64_TEST_RUN_2026-09-25_ALPHA3.md), and
+the [earlier x64 record](docs/WINDOWS_X64_TEST_RUN_2026-09-23.md)). Clean-machine
 installation, accessibility, signing, resource budgets and tray-icon visibility
 across devices are not yet verified. The in-memory
 search snapshot currently retains Markdown bodies and rescans the whole
