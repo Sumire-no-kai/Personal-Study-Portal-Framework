@@ -1,10 +1,13 @@
 # Note Portal Windows alpha 实机测试计划
 
+> [!IMPORTANT]
+> **当前进行中的检查清单：[#57 Windows 1.0 正式版发布前检查清单](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/57)。**测试哪个版本、谁测哪些项目、结果写在哪里，都以该 issue 为准；开始前先按 issue 开头核对安装包 SHA-256 和“关于”里的版本号。
+
 本计划供另一台 Windows 电脑上的测试者执行，重点是 **Windows on ARM**。它验证已发布的安装包，不把 CI 编译成功当作安装、运行成功。测试者只记录问题；未经项目负责人要求，不修改源码、不提交 PR、不重新发布。
 
 ## 1. 先确认版本与机器
 
-1. 从[公开 Releases](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)下载要测试的版本，不用 CI 临时 artifact 代替正式下载路径。保存 Release 链接、标签、安装包完整文件名和 `SHA256SUMS.txt`。**发布前复测例外：**如果有进行中的发布检查清单 issue（例如 0.1.1-alpha.1 的 [#44](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/44)），就改用该 issue 最新评论指定的 Actions 构建，按该清单逐项测试，并把结果评论到该 issue；记录运行编号和提交号。这类构建没有 `SHA256SUMS.txt`，改为记录下载的产物和安装包的 SHA-256。
+1. 从[公开 Releases](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)下载要测试的版本，不用 CI 临时 artifact 代替正式下载路径。保存 Release 链接、标签、安装包完整文件名和 `SHA256SUMS.txt`。**发布检查清单优先：**如果有进行中的发布检查清单 issue（当前是 [#57](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/57)；此前 0.1.1-alpha.1 用的是 [#44](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/44)），就测该 issue 指定的版本（写在 issue 开头，或以最新评论为准），按该清单逐项测试，并把结果评论到该 issue；如果指定的是 Actions 构建，记录运行编号和提交号。这类构建没有 `SHA256SUMS.txt`，改为记录下载的产物和安装包的 SHA-256。
 2. 用 PowerShell 的 `Get-FileHash -Algorithm SHA256` 核对安装包与校验文件。不一致就停止安装并报告。
 3. 记录 Windows 版本与构建号、设备的处理器/系统架构、默认浏览器、是否已有 Edge WebView2 Runtime，以及测试前是否装过 Note Portal。
 4. Windows on ARM 优先选择文件名含 `arm64-setup.exe` 的包。x64 包在 ARM 机器上即使通过模拟运行，也不能算原生 ARM64 验证。如果所选 Release 没有 ARM64 包，记录“ARM64 包未发布”，不要把 x64 结果写成 ARM64 通过。
