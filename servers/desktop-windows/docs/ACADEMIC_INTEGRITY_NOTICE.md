@@ -5,7 +5,8 @@
 This is an internal implementation reference. The user-facing full notices are
 [`NOTICE.zh-CN.md`](NOTICE.zh-CN.md) and [`NOTICE.en.md`](NOTICE.en.md);
 only those files are bundled for the mandatory full notice and Settings entry.
-An appropriately qualified reviewer should review them before a stable release.
+No separate qualified review is required before the stable release (maintainer
+decision, 2026-09-26).
 They are not legal advice or institutional approval.
 
 ## First-run concise copy — Simplified Chinese

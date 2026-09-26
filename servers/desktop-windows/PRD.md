@@ -2,9 +2,9 @@
 
 **Status:** Windows alpha in development; stable-release criteria remain open
 
-**Version:** 0.4
+**Version:** 0.5
 
-**Date:** 2026-09-23
+**Date:** 2026-09-26
 
 **Target platforms:** macOS and Windows
 
@@ -45,9 +45,10 @@ name is assigned. The working bundle identifier is
    later enhancement.
 9. The implementation target is Tauri 2 with a shared Rust backend. A sidecar
    process requires evidence that the in-process service is insufficient.
-10. Windows is the first distribution and user-validation target. macOS shares
-    the core implementation but is not considered released until its own
-    packaging and clean-machine checks pass.
+10. Windows is the first distribution and user-validation target, and the
+    first stable release (1.0) is Windows-only: x64 and Windows on ARM. macOS
+    shares the core implementation but is not considered released until its
+    own packaging and clean-machine checks pass in a later release.
 11. The current academic-integrity and responsible-use notice must be accepted
     before first use. Until then, the app cannot select a library, start the
     service, open the Portal, or enable launch at login.
@@ -701,14 +702,14 @@ not contain separate copies of library, server, or refresh logic.
 - Current-document soft refresh with reading-position recovery.
 - Failure recovery and diagnostics.
 
-### Milestone 3 — Windows alpha validation
+### Milestone 3 — Windows validation and first stable release
 
 - Windows installer build, tray and login-launch verification.
 - Windows path and editor save-pattern compatibility tests.
 - Clean-machine installation, update, and removal checks.
 - Signed installer and reputation plan before a public stable release.
 
-### Milestone 4 — macOS parity and stable release
+### Milestone 4 — macOS parity (after the first stable release)
 
 - Menu-bar behavior, Apple silicon validation, and login launch.
 - macOS signing, hardened runtime, and notarization path.
@@ -725,8 +726,10 @@ not contain separate copies of library, server, or refresh logic.
 
 ## 18. First-release acceptance criteria
 
-The release is complete only when all of the following are demonstrated on a
-supported macOS machine and a supported Windows machine:
+The first stable release is Windows-only. It is complete only when all of the
+following are demonstrated on supported Windows x64 and Windows on ARM
+machines. The later macOS release must meet the same criteria on a supported
+macOS machine:
 
 1. A clean install shows the complete first-run notice before accessing a
    library or starting the service.
@@ -765,7 +768,8 @@ supported macOS machine and a supported Windows machine:
    refresh tests fail safely.
 17. The installed package contains no user notes, credentials, AI model files,
     or machine-specific paths.
-18. macOS and Windows consume the same General and Study library contracts,
+18. *(Applies from the macOS release.)* macOS and Windows consume the same
+    General and Study library contracts,
     manifest, notice, and SSE fixtures.
 19. Release builds meet the application-size, idle memory, idle CPU, warm-start,
     and single-file-refresh budgets in section 13.2, with recorded measurements.
