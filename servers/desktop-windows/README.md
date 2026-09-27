@@ -175,4 +175,4 @@ are unchanged keeps its previous hash instead of being read again, and served
 images are still verified against that hash. Incremental indexing, the 100 MiB
 idle-memory budget for a large library, and the sub-second refresh target are
 not yet demonstrated. Do not present this as a stable public release until
-those checks and the notice's requested policy review are complete.
+those checks are complete.
