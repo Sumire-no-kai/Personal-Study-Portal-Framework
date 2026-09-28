@@ -97,6 +97,9 @@ renames or deletes your Markdown files.
   **Settings → Personalization → Taskbar → Other system tray icons**.
 - The browser reader interface is currently Chinese only; the control window
   is available in Chinese and English.
+- A library can hold at most 64 MiB of Markdown in total, and at most 8 MiB
+  per note; images count separately, up to 32 MiB each. Split a larger
+  collection into several libraries.
 - There is no macOS build yet.
 - Keep the reader on this computer. Do not expose the local service to a
   network or the public internet.
