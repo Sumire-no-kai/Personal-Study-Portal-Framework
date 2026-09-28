@@ -63,6 +63,19 @@ function protectMathText(text, formulas) {
   });
 }
 
+// CommonMark cannot open `文字**「引用」**` or close `**重点：**后文`, because punctuation sits
+// between the delimiter and a CJK character. A word joiner beside such a delimiter makes it valid;
+// renderMarkdownWithMath removes the joiners again after parsing. Latin text is left as it is.
+const WORD_JOINER = "\u2060";
+const CJK_LETTER = "[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}]";
+const EMPHASIS_PUNCTUATION = "[\\p{P}\\p{S}]";
+const CJK_CLOSER = new RegExp(`(${EMPHASIS_PUNCTUATION})(?<!\\*)(\\*{1,3})(?!\\*)(?=${CJK_LETTER})`, "gu");
+const CJK_OPENER = new RegExp(`(?<=${CJK_LETTER})(\\*{1,3})(?!\\*)(?=${EMPHASIS_PUNCTUATION})`, "gu");
+
+function joinCjkEmphasis(text) {
+  return text.replace(CJK_CLOSER, `$1${WORD_JOINER}$2`).replace(CJK_OPENER, `$1${WORD_JOINER}`);
+}
+
 function protectMathInMarkdown(markdown) {
   const formulas = [];
   const fencedSegments = markdown.split(/(```[\s\S]*?```|~~~[\s\S]*?~~~)/g);
@@ -73,11 +86,11 @@ function protectMathInMarkdown(markdown) {
       let cursor = 0;
       const inlineCodePattern = /(`+)([\s\S]*?)\1/g;
       for (const match of segment.matchAll(inlineCodePattern)) {
-        output += protectMathText(segment.slice(cursor, match.index), formulas);
+        output += joinCjkEmphasis(protectMathText(segment.slice(cursor, match.index), formulas));
         output += match[0];
         cursor = match.index + match[0].length;
       }
-      output += protectMathText(segment.slice(cursor), formulas);
+      output += joinCjkEmphasis(protectMathText(segment.slice(cursor), formulas));
       return output;
     })
     .join("");
@@ -94,9 +107,12 @@ function renderMarkdownWithMath(markdown) {
   const textNodes = [];
   while (walker.nextNode()) textNodes.push(walker.currentNode);
   textNodes.forEach((node) => {
-    const text = node.textContent || "";
+    const text = (node.textContent || "").replaceAll(WORD_JOINER, "");
     const matches = [...text.matchAll(/PORTALMATHTOKEN(\d+)END/g)];
-    if (!matches.length) return;
+    if (!matches.length) {
+      if (text !== node.textContent) node.textContent = text;
+      return;
+    }
     const replacement = document.createDocumentFragment();
     let offset = 0;
     for (const match of matches) {
