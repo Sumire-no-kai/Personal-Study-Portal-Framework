@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, State, WindowEvent,
+    AppHandle, Emitter, Manager, RunEvent, State, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt as AutostartExt;
 use tauri_plugin_dialog::DialogExt;
@@ -1317,12 +1317,26 @@ fn quit(app: AppHandle) {
     app.exit(0);
 }
 
-fn show_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
+// The control window is built on demand and destroyed when closed, so its WebView2 processes do
+// not stay resident while only the tray and the local service are needed.
+fn show_window(app: &AppHandle) -> tauri::Result<()> {
+    let window = match app.get_webview_window("main") {
+        Some(window) => window,
+        None => {
+            let config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|window| window.label == "main")
+                .ok_or(tauri::Error::WindowNotFound)?;
+            tauri::WebviewWindowBuilder::from_config(app, config)?.build()?
+        }
+    };
+    window.show()?;
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+    Ok(())
 }
 
 // A later successful service action supersedes any tray or startup error still on display.
@@ -1337,7 +1351,7 @@ fn report_tray_error(app: &AppHandle, error: String) {
     if let Ok(mut visible_error) = state.startup_error.lock() {
         *visible_error = Some(error.clone());
     }
-    show_window(app);
+    let _ = show_window(app);
     // The event updates an already-open dialog; status retains the error if the event is missed.
     let _ = app.emit_to("main", "note-portal-tray-error", error);
 }
@@ -1383,7 +1397,7 @@ fn set_ui_language(app: AppHandle, language: String) -> Result<(), String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            show_window(app)
+            let _ = show_window(app);
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -1435,7 +1449,9 @@ fn main() {
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
-                    "show" => show_window(app),
+                    "show" => {
+                        let _ = show_window(app);
+                    }
                     "open" => {
                         let app = app.clone();
                         tauri::async_runtime::spawn(async move {
@@ -1473,13 +1489,13 @@ fn main() {
                         ..
                     } = event
                     {
-                        show_window(tray.app_handle());
+                        let _ = show_window(tray.app_handle());
                     }
                 })
                 .build(app)?;
 
             let autostart = std::env::args().any(|arg| arg == "--note-portal-autostart");
-            // The window is created hidden so a login launch never flashes it on screen.
+            // A login launch creates no window at all, so nothing flashes and no WebView2 starts.
             let start_hidden = autostart
                 && state
                     .settings
@@ -1487,10 +1503,7 @@ fn main() {
                     .expect("settings mutex poisoned")
                     .ready();
             if !start_hidden {
-                if let Some(window) = app.get_webview_window("main") {
-                    window.show()?;
-                    let _ = window.set_focus();
-                }
+                show_window(app.handle())?;
             }
             let selection =
                 state.settings.lock().ok().and_then(|settings| {
@@ -1511,7 +1524,7 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
+            if let WindowEvent::CloseRequested { .. } = event {
                 let state = window.app_handle().state::<Arc<AppState>>();
                 if !state
                     .settings
@@ -1520,14 +1533,21 @@ fn main() {
                     .unwrap_or(false)
                 {
                     window.app_handle().exit(0);
-                } else {
-                    api.prevent_close();
-                    let _ = window.hide();
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("Note Portal failed to start");
+        .build(tauri::generate_context!())
+        .expect("Note Portal failed to start")
+        .run(|_, event| {
+            // Closing the last window must not end the app: the tray and the service keep
+            // running. Quit and the notice gate exit explicitly with a code.
+            if let RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
+                api.prevent_exit();
+            }
+        });
 }
 
 #[cfg(test)]
