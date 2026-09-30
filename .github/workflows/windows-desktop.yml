@@ -7,6 +7,7 @@ on:
       - master
     tags:
       - "v*-alpha.*"
+      - "v*-beta.*"
     paths:
       - "servers/desktop-windows/**"
       - "LICENSE"
@@ -108,7 +109,7 @@ jobs:
           pattern: note-portal-windows-*-installer
           path: release
           merge-multiple: true
-      - name: Publish Windows alpha prerelease
+      - name: Publish Windows prerelease
         working-directory: release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -130,8 +131,10 @@ jobs:
           test "${#arm64[@]}" -eq 1
           sha256sum "${x64[0]}" "${arm64[0]}" > SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
+          channel=alpha
+          if [[ "$GITHUB_REF_NAME" == *-beta.* ]]; then channel=beta; fi
           gh release create "$GITHUB_REF_NAME" "${x64[0]}" "${arm64[0]}" SHA256SUMS.txt \
             --verify-tag --prerelease --latest=false \
-            --title "Note Portal $GITHUB_REF_NAME (Windows alpha)" \
-            --notes "Windows 预发布版：根据设备选择 x64 或 ARM64 的 *-setup.exe 安装，GitHub 自动提供对应源码。ARM64 安装器外壳可能使用 x86 模拟，安装后的应用主体为 ARM64。首次启动请打开并读完整使用提示、完成不可跳过的简短指引，然后选择本机 Markdown 文件夹。小窗口按系统语言默认显示中文或英文，可在设置中切换；Windows 阅读页支持主题色与本机 Logo。服务仅监听本机，不内置 AI，也不会上传笔记。安装包未签名，可能触发 Windows SmartScreen 提示；仍需干净系统验证，请仅在你信任的电脑上试用。此版本不适合公网部署。" \
+            --title "Note Portal $GITHUB_REF_NAME (Windows $channel)" \
+            --notes "Windows 预发布版：根据设备选择 x64 或 ARM64 的 *-setup.exe 安装，“Source code”压缩包不是应用。ARM64 安装器外壳可能使用 x86 模拟，安装后的应用主体为 ARM64；新版本可直接覆盖旧版本安装，设置会保留。首次启动请打开并读完整使用提示、完成不可跳过的简短指引，然后选择本机 Markdown 文件夹。小窗口按系统语言默认显示中文或英文，可在设置中切换；Windows 阅读页支持主题色与本机 Logo。服务仅监听本机，不内置 AI，也不会上传笔记；单个资料库的 Markdown 总量上限为 64 MiB。安装包尚未签名，可能触发 Windows SmartScreen 提示，请仅在你信任的电脑上安装；尚未在全新安装的 Windows 系统上验证。遇到问题或有建议，请用 https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/new/choose 中的表单反馈。此版本不适合公网部署。" \
             --generate-notes

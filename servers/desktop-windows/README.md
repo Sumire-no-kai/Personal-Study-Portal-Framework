@@ -1,6 +1,7 @@
 # Note Portal
 
-Note Portal is a lightweight Windows alpha, with macOS support planned, that turns a local
+Note Portal is a lightweight Windows app, in public beta with macOS support planned
+for a later release, that turns a local
 Markdown folder into a structured reading website. The desktop process selects
 and watches a library, runs the local service, and opens the user's normal
 browser. Study notes are an important built-in profile, not the only supported
@@ -46,7 +47,7 @@ independent applications. Platform-specific code is limited to behavior that
 cannot be shared, such as startup registration, tray conventions, signing,
 notarization, and installer configuration.
 
-The current alpha implements the Windows path first, using Tauri 2, a Vanilla
+The current beta implements the Windows path first, using Tauri 2, a Vanilla
 TypeScript status panel, and one Rust process for scanning, watching, and HTTP.
 The macOS package remains planned, not tested or released. Tauri supports
 system-tray applications and startup registration on both target platforms:
@@ -84,7 +85,7 @@ shared vendored Marked/KaTeX libraries; it does not include any user content.
 General and Study differ by their
 discovery contract and navigation data, not by a second web application.
 
-## Build the Windows alpha
+## Build the Windows app
 
 On Windows, install Node.js and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/):
 Rust with the MSVC toolchain, Microsoft C++ Build Tools with “Desktop development
@@ -113,10 +114,10 @@ The default host build writes its unsigned
 under `src-tauri/target/release/bundle/nsis/`. The public repository's
 Windows CI builds x64 and native ARM64 targets on separate Windows runners and
 uploads temporary architecture-labelled artifacts for review. After a PR is
-merged, a `v*-alpha.*` tag at the current `master` commit triggers a GitHub
+merged, a `v*-alpha.*` or `v*-beta.*` tag at the current `master` commit triggers a GitHub
 prerelease with both installers and `SHA256SUMS.txt` only if both jobs pass. A
 tag must match the version in the Tauri, Cargo, and npm manifests; the About
-dialog reads the packaged version so testers can identify the installed alpha.
+dialog reads the packaged version so testers can identify the installed build.
 A version bump alone does not publish or replace an existing release. A
 PR or `master` push without that tag does not publish a release. The release
 description contains fixed installation/safety guidance plus generated change
@@ -125,7 +126,7 @@ choose the `arm64-setup.exe` asset, not treat an emulated x64 run as native
 ARM64 validation.
 The ARM64 NSIS bootstrapper itself may use x86 emulation while the installed
 application is native ARM64.
-Windows Defender/SmartScreen may warn about an unsigned alpha. Do not bypass
+Windows Defender/SmartScreen may warn about an unsigned installer. Do not bypass
 such warnings on a machine you do not trust.
 
 The app must show the current responsible-use notice and require the first-run
@@ -156,7 +157,7 @@ deployment. Review any future root-to-Windows reader sync explicitly.
 What the desktop build does exclude is content, not code: private notes,
 generated manifests, course configuration and indexes, and any credential.
 
-## Alpha limitations
+## Beta limitations
 
 The [PRD](PRD.md) defines the stable-release acceptance criteria. Formatting,
 unit tests and Clippy run on native Windows x64 and ARM64 CI runners.
@@ -167,7 +168,10 @@ including the tray icon on both devices. The checklist's optional items were
 not run on those devices. The [test plan](docs/WINDOWS_TEST_PLAN.zh-CN.md) holds
 the ARM64 records and links every x64 record, the latest being the
 [0.1.1-alpha.1 x64 retest](docs/WINDOWS_X64_TEST_RUN_2026-09-25_ISSUE44_RETEST.md).
-Clean-machine installation, accessibility, signing and resource budgets are not
+The first stable-release checklist
+([#57](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/57))
+tracks the remaining device results. Installation on a freshly installed
+Windows system, accessibility, signing and the full resource budgets are not
 yet verified. The in-memory
 search snapshot currently retains Markdown bodies and rescans the whole
 library after a relevant file event; an image whose size and modification time
