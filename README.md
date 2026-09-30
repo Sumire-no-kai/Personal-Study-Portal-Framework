@@ -100,6 +100,13 @@ renames or deletes your Markdown files.
 - A library can hold at most 64 MiB of Markdown in total, and at most 8 MiB
   per note; images count separately, up to 32 MiB each. Split a larger
   collection into several libraries.
+- Image links must be relative to the note, for example
+  `../assets/figure.png`, and the image must be inside the selected library.
+  Root-absolute links such as `/assets/figure.png` are not shown.
+- Large libraries use more resources. With about 2,000 notes (48 MiB of
+  Markdown) the test PC used about 130 MiB of memory while idle and took up
+  to about 3 seconds to start serving; typical libraries stay below 100 MiB
+  and start in well under a second.
 - There is no macOS build yet.
 - Keep the reader on this computer. Do not expose the local service to a
   network or the public internet.
