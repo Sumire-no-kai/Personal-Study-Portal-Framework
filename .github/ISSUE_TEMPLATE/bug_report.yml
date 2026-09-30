@@ -13,7 +13,7 @@ body:
     attributes:
       label: 应用版本 / App version
       description: 在应用的“关于”中查看 / Shown in the app's About dialog
-      placeholder: 0.1.1-alpha.1
+      placeholder: 0.2.0-beta.1
     validations:
       required: true
   - type: input

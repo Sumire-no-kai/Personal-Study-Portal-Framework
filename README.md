@@ -1,8 +1,8 @@
 # Study Portal Framework
 
 [![Windows desktop CI](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/workflows/windows-desktop.yml/badge.svg?branch=master)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/workflows/windows-desktop.yml)
-[![Latest Windows prerelease](https://img.shields.io/github/v/release/Sumire-no-kai/Personal-Study-Portal-Framework?include_prereleases&label=Windows%20alpha)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)
-[![Platform: Windows x64 and ARM64](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20ARM64-0078D4)](#windows-desktop-alpha-note-portal)
+[![Latest Windows prerelease](https://img.shields.io/github/v/release/Sumire-no-kai/Personal-Study-Portal-Framework?include_prereleases&label=Windows)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)
+[![Platform: Windows x64 and ARM64](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20ARM64-0078D4)](#windows-desktop-beta-note-portal)
 [![License: MIT](https://img.shields.io/github/license/Sumire-no-kai/Personal-Study-Portal-Framework)](LICENSE)
 
 > [!IMPORTANT]
@@ -28,7 +28,7 @@ A local-first, content-agnostic Markdown reader for long-form learning material.
 It provides structured navigation, responsive reading, LaTeX rendering,
 reading-position persistence, and an optional assistant interface that can be
 connected to a separate backend. The repository also contains **Note Portal**,
-an alpha Windows desktop app that serves the same kind of reader for a local
+a Windows desktop app, now in public beta, that serves the same kind of reader for a local
 folder of Markdown files.
 
 This repository intentionally contains **no course material, personal notes,
@@ -48,16 +48,16 @@ the source tree. The static reader starts in a safe empty-library state; add a g
 - Optional assistant panel. The UI degrades safely when no assistant or search
   backend is configured.
 
-## Windows desktop alpha: Note Portal
+## Windows desktop beta: Note Portal
 
 Note Portal turns a local folder of Markdown files into a reading site in your
 normal browser. A small control window selects the folder, shows the
 recognised structure and any problem files, watches for changes, and serves
 the reader only to this computer (`127.0.0.1`) through a per-launch browser
-session. It has no built-in AI service and does not upload notes. It is an
-**alpha prerelease**: the installers are unsigned, and clean-machine
-installation, accessibility, resource budgets and signing have not yet been
-verified.
+session. It has no built-in AI service and does not upload notes. It is a
+**public beta**, published as a GitHub prerelease. It has been checked on an
+x64 PC and a Windows on ARM device, but the installers are not yet
+code-signed and some checks for the first stable release remain open.
 
 ### Install
 
@@ -69,8 +69,8 @@ verified.
 2. Optionally compare the installer's SHA-256 with `SHA256SUMS.txt` from the
    same release, for example `Get-FileHash .\<installer>.exe` in PowerShell.
 3. Windows SmartScreen may warn about the unsigned installer. Continue only on
-   a computer you trust. Installing a newer alpha over an older one keeps your
-   settings.
+   a computer you trust. Installing a newer version over an older one keeps
+   your settings.
 4. On first launch, open the full responsible-use notice, scroll to its end,
    agree, and complete the short guide. You are asked again whenever the notice
    changes.
@@ -100,6 +100,13 @@ renames or deletes your Markdown files.
 - A library can hold at most 64 MiB of Markdown in total, and at most 8 MiB
   per note; images count separately, up to 32 MiB each. Split a larger
   collection into several libraries.
+- Image links must be relative to the note, for example
+  `../assets/figure.png`, and the image must be inside the selected library.
+  Root-absolute links such as `/assets/figure.png` are not shown.
+- Large libraries use more resources. With about 2,000 notes (48 MiB of
+  Markdown) the test PC used about 130 MiB of memory while idle and took up
+  to about 3 seconds to start serving; typical libraries stay below 100 MiB
+  and start in well under a second.
 - There is no macOS build yet.
 - Keep the reader on this computer. Do not expose the local service to a
   network or the public internet.
@@ -123,7 +130,7 @@ deployment. It never bundles a user's library. Windows CI checks formatting,
 runs the tests and Clippy, and builds NSIS installers on native x64 and ARM64
 runners for relevant pull requests and `master` pushes. CI artifacts are
 temporary test outputs kept for 14 days, not a public download release. After
-a change is merged, a `v*-alpha.*` tag pointing to the current `master` commit
+a change is merged, a `v*-alpha.*` or `v*-beta.*` tag pointing to the current `master` commit
 triggers the release workflow. The tag must match the version in the Tauri,
 Cargo and npm manifests, and the workflow publishes both installers and their
 SHA-256 checksums as a prerelease only if both architecture jobs pass. PR merge
