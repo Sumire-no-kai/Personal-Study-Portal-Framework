@@ -340,12 +340,24 @@ async function action<T>(work: () => Promise<T>): Promise<T | undefined> {
 }
 
 let dialogDismissible = true;
+let dialogReturnFocusId = "";
+const FOCUSABLE = "button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 function openDialog(title: string, body: string, dismissible = true): void {
   dialogDismissible = dismissible;
+  const wasOpen = dialog.open;
+  const focusedId = document.activeElement instanceof HTMLElement ? document.activeElement.id : "";
+  if (!wasOpen) dialogReturnFocusId = focusedId;
   dialog.innerHTML = `<div class="dialog-content"><div class="dialog-heading"><h2 id="dialog-title">${escapeHtml(title)}</h2>${dismissible ? `<button class="icon-close" id="dialog-close" type="button" aria-label="${tr("关闭", "Close")}">×</button>` : ""}</div>${body}</div>`;
   if (dismissible) dialog.querySelector("#dialog-close")?.addEventListener("click", () => dialog.close());
-  if (!dialog.open) dialog.showModal();
+  if (!wasOpen) {
+    dialog.showModal();
+    return;
+  }
+  // Replacing an open dialog's content removes the focused control; move focus to its counterpart.
+  const counterpart = focusedId ? dialog.querySelector<HTMLElement>(`#${CSS.escape(focusedId)}`) : null;
+  const target = counterpart?.matches(FOCUSABLE) ? counterpart : dialog.querySelector<HTMLElement>(FOCUSABLE);
+  target?.focus();
 }
 
 async function showNotice(): Promise<void> {
@@ -691,6 +703,12 @@ dialog.addEventListener("click", (event) => {
 });
 dialog.addEventListener("cancel", (event) => { if (!dialogDismissible) event.preventDefault(); });
 dialog.addEventListener("close", () => {
+  // A re-render after closing can replace the control that opened the dialog; focus its replacement.
+  const returnId = dialogReturnFocusId;
+  queueMicrotask(() => {
+    if (dialog.open || !returnId || document.activeElement !== document.body) return;
+    document.getElementById(returnId)?.focus();
+  });
   if (!dialogDismissible && status?.noticeAccepted && !status.guideCompleted) {
     queueMicrotask(() => { if (!dialog.open) showFirstRunGuide(guideStep); });
   }
