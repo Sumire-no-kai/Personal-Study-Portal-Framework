@@ -1502,9 +1502,6 @@ fn main() {
                     .lock()
                     .expect("settings mutex poisoned")
                     .ready();
-            if !start_hidden {
-                show_window(app.handle())?;
-            }
             let selection =
                 state.settings.lock().ok().and_then(|settings| {
                     settings.ready().then(|| settings.library.clone()).flatten()
@@ -1520,6 +1517,11 @@ fn main() {
                     }
                     state.startup_in_progress.store(false, Ordering::SeqCst);
                 });
+            }
+            // Building the window waits for WebView2, so start the saved library first and let the
+            // scan and the loopback listener run while the control window is still being created.
+            if !start_hidden {
+                show_window(app.handle())?;
             }
             Ok(())
         })
