@@ -468,3 +468,22 @@ ARM64 测试机：Windows 11 25H2 Build 26200.9457，Snapdragon 8cx Gen 3 @ 2.69
 本轮只验收本评论的 S1 与两处 E1 修复，使用当前账户；**不替代新 Windows 用户的 A1–A5、冷启动或性能验收**。安装包、笔记、设置与备份保存在本机仓库外，公开报告不含私有路径或会话地址。
 
 最终恢复验证后在控制窗口正常点击退出，Note Portal 进程为 0。候选版保持安装，虚构测试笔记与独立设置备份保留。
+
+## Windows on ARM：0.2.0-beta.1 C1 / C2 / G5 / B1 补测（2026-09-30）
+
+测试机：Windows 11 ARM64 25H2 Build 26200.9457，Snapdragon 8cx Gen 3 @ 2.69 GHz（8 逻辑核）；安装包 SHA-256：2c039c241203464fcec936e59efd831920ff212f0706a521f160a8b347ebc877；ZIP SHA-256：45b596ac50960d57ed41806ec2e4ced249a5526378d53d9bb6c6a4ff197cc01d。
+
+## ARM64 候选 C1 / C2 / G5 复测，B1 待人工注销登录（2026-09-30）
+
+按 [本次四项要求](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/57#issuecomment-5909860190) 测试。直接沿用 S1 从资源管理器安装的 Actions run **36677247803** 候选，未重新下载或安装；本轮从 **Windows 桌面 Note Portal 快捷方式双击启动**，没有从远程工具子进程启动应用。“关于”实机显示 **0.2.0-beta.1 · Windows**，保留的安装包重新计算 SHA-256 与 S1 一致。测试只使用独立虚构 General 库；没有修改产品源码。
+
+| 项目 | 当前结果 | 实机步骤与观察 |
+|---|---|---|
+| C1 | **通过** | 按 issue 正文 PowerShell 命令创建 `Node.js 笔记/intro.md`（正文 `# Intro`），已打开的阅读页自动从 2→3 篇并显示目录/Intro。在资源管理器 F2 将目录改成 `Node.js Renamed 笔记`，阅读页自动显示新目录名、Intro 保留；然后资源管理器 Delete 移到回收站（未用 Shift+Delete、未清空回收站），阅读页自动从 3→2 篇，目录和 Intro 消失。整个过程没有点击立即刷新或重载浏览器。每次操作后下一次界面观察已更新；没有精确计时，不报告毫秒延迟。 |
+| C2 | **通过** | 新建两篇有有效 front matter 的虚构笔记，分别在两个阅读标签打开基线正文。同一个 PowerShell 调用连续保存：删除 `c2-broken.md` 结束的 `---` 并改正文，同时把 `c2-other.md` 改为 `C2_OTHER_AFTER_20260930`。坏笔记仍显示基线 `C2_OLD_BODY_20260930`，另一标签自动显示新正文；控制窗口 4 篇/1 提醒，展开未识别文件显示 `c2-broken.md` 和“Frontmatter 缺少结束的 --- 行”。恢复结束 delimiter 并写 `C2_RESTORED_BODY_20260930`，该标签自动显示修复后正文，控制窗口恢复 4 篇/0 提醒。未手动刷新。 |
+| G5 | **通过** | 在正常桌面应用打开“使用指南”，滚动至“进阶说明”，实际点击“资料库结构规范”。默认 Chrome 新开 GitHub 标签，URL 为 `https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/blob/master/servers/desktop-windows/docs/LIBRARY_STRUCTURE.md`；页面成功加载，显示“Note Portal 资料库结构规范”，不是只凭浏览器进程或空白页判断。 |
+| B1 | **待人工完成，未判通过** | 已在普通桌面应用“设置与条款”勾选“登录电脑后在任务栏静默启动服务（不自动打开浏览器）”，截图确认勾选；关闭对话框后点控制窗口 ×，本轮关闭后为 1 个 Note Portal 进程、MainWindowHandle=0。下一步必须由测试者保存工作、手动注销再登录，观察是否闪现控制窗口/自动打开浏览器，再亲手从托盘打开阅读器与控制窗口。登录后还需关闭登录启动；本阶段尚未注销、未关闭此选项。 |
+
+C1 目录可从回收站恢复。C2 两篇虚构笔记保留为有效文件，供 B1 验证当前 General 库 4 篇文档/0 提醒。原 S1 两篇笔记的 SHA-256 均与复测前一致：`smoke.md` = `e1b754cdf44eb20b5ff408f8d18c6a9b82015f2edcc155fb7ebe78de8207c45f`；`Beta E1 Focus Test.md` = `25a7664c378fdb15f1b44ced88d6c3cd5230c25191c5aecd979a7221a054dbbc`。
+
+本报告明确区分已完成三项和 B1 人工待测；收到注销/登录与托盘实际观察后继续补充 B1 最终结果。普通桌面启动和 UI 设置作为本次证据，不使用 Codex 子进程虚拟化的 AppData/HKCU 视图代替它们。
