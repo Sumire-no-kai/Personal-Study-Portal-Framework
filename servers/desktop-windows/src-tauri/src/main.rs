@@ -1505,8 +1505,13 @@ fn main() {
         ])
         .setup(|app| {
             let started = std::time::Instant::now();
-            diagnostics::init(app.handle())?;
-            diagnostics::startup();
+            // The log is a troubleshooting aid: if its folder cannot be prepared, keep running
+            // without a file log and keep the failure in the in-memory diagnostic summary.
+            if diagnostics::init(app.handle()).is_err() {
+                diagnostics::failure("diagnostics.init_failed");
+            }
+            // Reading the Windows version starts a child process; keep it off the launch path.
+            std::thread::spawn(diagnostics::startup);
             diagnostics::event("setup.start");
             let settings_path = app.path().app_data_dir()?.join("settings.json");
             let state = AppState::load(settings_path);
