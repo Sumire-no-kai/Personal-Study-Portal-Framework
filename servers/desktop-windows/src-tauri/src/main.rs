@@ -1470,6 +1470,7 @@ fn main() {
         ])
         .setup(|app| {
             let started = std::time::Instant::now();
+            diagnostics::init(app.handle())?;
             diagnostics::startup();
             diagnostics::event("setup.start");
             let settings_path = app.path().app_data_dir()?.join("settings.json");
