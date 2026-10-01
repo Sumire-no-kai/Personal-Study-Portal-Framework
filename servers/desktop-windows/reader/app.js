@@ -1,9 +1,17 @@
+const { t, locale } = window.NotePortalI18n;
+window.NotePortalI18n.applyStatic(document);
+document.documentElement.lang = window.NotePortalI18n.language === "zh" ? "zh-CN" : "en";
+
 const EMPTY_PORTAL_DATA = Object.freeze({
   id: "note-portal",
   label: "Note Portal",
   pickerLabel: "Note Portal",
   generatedAt: "",
   units: [],
+  desktop: true,
+  profile: "general",
+  documents: [],
+  tree: [],
 });
 
 let portalData = window.PORTAL_DATA && Array.isArray(window.PORTAL_DATA.units)
@@ -256,17 +264,17 @@ const LAST_NOTE_STORE_KEY = `study-portal-last-note:${portalData.id}`;
 const ASSISTANT_CONVERSATION_STORE_KEY = `study-portal-assistant-conversation:${portalData.id}`;
 const READING_THEME_STORE_KEY = "study-portal-reading-theme";
 const READING_THEMES = new Set(["light", "warm", "dark"]);
-const IMMERSION_CLOCK_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+const IMMERSION_CLOCK_DATE_FORMATTER = new Intl.DateTimeFormat(locale, {
   year: "numeric",
   month: "long",
   day: "numeric",
 });
-const IMMERSION_CLOCK_WEEKDAY_FORMATTER = new Intl.DateTimeFormat("zh-CN", { weekday: "short" });
-const IMMERSION_CLOCK_COMPACT_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+const IMMERSION_CLOCK_WEEKDAY_FORMATTER = new Intl.DateTimeFormat(locale, { weekday: "short" });
+const IMMERSION_CLOCK_COMPACT_DATE_FORMATTER = new Intl.DateTimeFormat(locale, {
   month: "2-digit",
   day: "2-digit",
 });
-const IMMERSION_CLOCK_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+const IMMERSION_CLOCK_TIME_FORMATTER = new Intl.DateTimeFormat(locale, {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
@@ -291,7 +299,7 @@ function flattenPortalNotes(data) {
 }
 
 function formatWeekLabel(note) {
-  if (portalData.profile === "general") return note.location || "资料库最外层";
+  if (portalData.profile === "general") return note.location || t("资料库最外层");
   return note.weekLabel || `Week ${note.week}`;
 }
 
@@ -405,10 +413,10 @@ function getContinueNote() {
 }
 
 function formatSyncTime(value) {
-  if (!value) return "locally";
+  if (!value) return t("locally");
   const parsed = new Date(String(value).replace(" ", "T"));
   if (Number.isNaN(parsed.getTime())) return String(value);
-  return new Intl.DateTimeFormat("en-AU", {
+  return new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -683,7 +691,7 @@ function captureLastReadPosition() {
   const scrollTop = Math.max(0, window.scrollY);
   return {
     anchorId: anchor?.id || "note-top",
-    anchorLabel: anchor?.textContent?.replace(/\s+/g, " ").trim() || "笔记开头",
+    anchorLabel: anchor?.textContent?.replace(/\s+/g, " ").trim() || t("笔记开头"),
     progress: scrollRange > 0 ? Math.min(1, Math.max(0, scrollTop / scrollRange)) : 0,
     scrollTop,
   };
@@ -829,11 +837,11 @@ function presentLastReadPosition(note) {
     return;
   }
 
-  const label = target.textContent?.replace(/\s+/g, " ").trim() || position.anchorLabel || "笔记开头";
+  const label = target.textContent?.replace(/\s+/g, " ").trim() || position.anchorLabel || t("笔记开头");
   activeLastReadPosition = { ...position, noteId: note.id };
   lastReadMarker.hidden = false;
-  lastReadMarker.setAttribute("aria-label", `跳转到上次阅读位置：${label}`);
-  lastReadMarker.title = `上次读到：${label}`;
+  lastReadMarker.setAttribute("aria-label", t("jumpLast", { label }));
+  lastReadMarker.title = t("lastRead", { label });
   positionLastReadMarker();
 
   const prompt = viewRoot.querySelector("#last-read-prompt");
@@ -841,7 +849,7 @@ function presentLastReadPosition(note) {
   const meta = viewRoot.querySelector("#last-read-meta");
   if (!prompt || !heading || !meta) return;
   heading.textContent = label;
-  meta.textContent = `约 ${Math.round(position.progress * 100)}% 处 · 可继续跳转，或先从当前页开始看`;
+  meta.textContent = t("lastProgress", { percent: Math.round(position.progress * 100) });
   prompt.hidden = false;
   viewRoot.querySelector("#last-read-resume")?.addEventListener("click", jumpToLastReadPosition);
   viewRoot.querySelector("#last-read-dismiss")?.addEventListener("click", dismissLastReadPrompt);
@@ -1253,7 +1261,7 @@ function updateImmersionClock() {
   const compactDateText = IMMERSION_CLOCK_COMPACT_DATE_FORMATTER.format(now);
   const timeText = IMMERSION_CLOCK_TIME_FORMATTER.format(now);
   immersionClock.dateTime = now.toISOString();
-  immersionClock.setAttribute("aria-label", `当前时间：${dateText} ${timeText}`);
+  immersionClock.setAttribute("aria-label", t("currentTime", { date: dateText, time: timeText }));
   immersionClockDate.textContent = dateText;
   immersionClockCompactDate.textContent = compactDateText;
   immersionClockTime.textContent = timeText;
@@ -1295,15 +1303,15 @@ function updateImmersionControls() {
   readerControlDock.hidden = !isNote;
   immersionToggle.hidden = !isNote;
   immersionToggle.setAttribute("aria-pressed", String(active));
-  immersionToggle.setAttribute("aria-label", active ? "退出全屏沉浸阅读" : "进入全屏沉浸阅读");
-  immersionToggle.title = active ? "退出全屏沉浸阅读" : "进入全屏沉浸阅读";
+  immersionToggle.setAttribute("aria-label", active ? t("退出全屏沉浸阅读") : t("进入全屏沉浸阅读"));
+  immersionToggle.title = active ? t("退出全屏沉浸阅读") : t("进入全屏沉浸阅读");
 
   if (active && desktop) {
     tocToggle.setAttribute("aria-expanded", String(!tocCollapsed));
-    tocToggle.setAttribute("aria-label", tocCollapsed ? "展开本页目录" : "本页目录已展开");
-    tocToggle.title = tocCollapsed ? "展开本页目录" : "本页目录已展开";
-    tocClose.setAttribute("aria-label", "收起阅读工具");
-    tocClose.title = "收起阅读工具";
+    tocToggle.setAttribute("aria-label", tocCollapsed ? t("展开本页目录") : t("本页目录已展开"));
+    tocToggle.title = tocCollapsed ? t("展开本页目录") : t("本页目录已展开");
+    tocClose.setAttribute("aria-label", t("收起阅读工具"));
+    tocClose.title = t("收起阅读工具");
   } else {
     tocToggle.removeAttribute("title");
     tocClose.removeAttribute("title");
@@ -1441,7 +1449,7 @@ async function loadPortalManifest() {
     applyPortalUpdate(latestPortalData);
     watchForPublishedPortalRelease();
   } catch (error) {
-    /* A framework-only deployment intentionally has no private manifest. */
+    // The desktop failure state below stays localised when the manifest cannot be loaded.
   } finally {
     portalManifestLoadComplete = true;
     if (!portalManifestAvailable) {
@@ -1577,7 +1585,7 @@ function watchForPublishedPortalRelease() {
       const warning = document.createElement("div");
       warning.className = "portal-connection-warning";
       warning.setAttribute("role", "alert");
-      warning.textContent = "本地服务已断开；当前内容可能不是最新版本。请在 Note Portal 窗口重新打开阅读器。";
+      warning.textContent = t("本地服务已断开；当前内容可能不是最新版本。请在 Note Portal 窗口重新打开阅读器。");
       document.body.prepend(warning);
     });
     releaseEvents.addEventListener("open", () => {
@@ -1592,37 +1600,37 @@ function renderPortalIdentity() {
   if (portalData.desktop) {
     document.querySelector(".brand__product").textContent = "Note Portal";
     document.querySelector(".brand__usyd-logo")?.remove();
-    document.querySelector("#library-link span").textContent = "资料库目录";
-    document.querySelector("#sidebar")?.setAttribute("aria-label", "文件夹与文档导航");
-    document.querySelector("#course-navigation")?.setAttribute("aria-label", "文件夹与文档列表");
-    document.querySelector("#search-trigger")?.setAttribute("aria-label", "搜索文档");
+    document.querySelector("#library-link span").textContent = t("资料库目录");
+    document.querySelector("#sidebar")?.setAttribute("aria-label", t("文件夹与文档导航"));
+    document.querySelector("#course-navigation")?.setAttribute("aria-label", t("文件夹与文档列表"));
+    document.querySelector("#search-trigger")?.setAttribute("aria-label", t("搜索文档"));
   }
   if (portalData.profile === "general") {
     semesterSelect.innerHTML = `<option value="${escapeHtml(portalData.id)}">${escapeHtml(portalData.label)}</option>`;
     semesterSelect.value = portalData.id;
     sidebarTerm.textContent = portalData.label;
-    sidebarSummary.textContent = `${flatNotes.length} ${flatNotes.length === 1 ? "document" : "documents"}`;
+    sidebarSummary.textContent = t("documentsCount", { count: flatNotes.length });
     searchScopeTerm.textContent = portalData.label;
     updateSupportPresentation();
     return;
   }
   semesterSelect.innerHTML = `
-    <option value="__home__">All semesters</option>
+    <option value="__home__">${t("All semesters")}</option>
     <option value="${escapeHtml(portalData.id)}">${escapeHtml(portalData.pickerLabel || portalData.label)}</option>`;
   semesterSelect.value = state.view === "home" ? "__home__" : portalData.id;
   sidebarTerm.textContent = portalData.label;
-  sidebarSummary.textContent = `${activeUnits.length} active ${activeUnits.length === 1 ? "unit" : "units"} · ${flatNotes.length} ${flatNotes.length === 1 ? "note" : "notes"}`;
+  sidebarSummary.textContent = t("studyCounts", { units: activeUnits.length, notes: flatNotes.length });
   searchScopeTerm.textContent = portalData.label;
   updateSupportPresentation();
 }
 
 function renderCurrentNoteIndicator(note, unit) {
   if (portalData.desktop || portalData.profile === "general") {
-    currentNoteLabel.textContent = "当前文档";
+    currentNoteLabel.textContent = t("当前文档");
     currentNoteUnit.textContent = note.title;
-    currentNoteWeek.textContent = note.location || "资料库最外层";
-    currentNoteWeekShort.textContent = "文档";
-    currentNoteIndicator.setAttribute("aria-label", `当前文档：${note.title}`);
+    currentNoteWeek.textContent = note.location || t("资料库最外层");
+    currentNoteWeekShort.textContent = t("文档");
+    currentNoteIndicator.setAttribute("aria-label", t("currentDocument", { title: note.title }));
     currentNoteIndicator.title = note.title;
     return;
   }
@@ -1704,7 +1712,7 @@ function setViewMode(view, note = null) {
   updateImmersionControls();
   updateBackToTopVisibility();
   semesterSelect.value = isHome ? "__home__" : portalData.id;
-  brandHome.setAttribute("aria-label", portalData.desktop ? "返回 Note Portal 首页" : (isHome ? "学习门户首页" : "返回学习门户首页"));
+  brandHome.setAttribute("aria-label", portalData.desktop ? t("返回 Note Portal 首页") : (isHome ? "学习门户首页" : "返回学习门户首页"));
   updateDocumentTitle(view, note);
 
   if (!isNote) {
@@ -1915,21 +1923,21 @@ async function renderNote(note, options = {}) {
 
   viewRoot.innerHTML = portalData.desktop || portalData.profile === "general" ? `
     <div class="reading-container">
-      <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <nav class="breadcrumbs" aria-label="${t("Breadcrumb")}">
         <button type="button" data-view="overview">${escapeHtml(portalData.label)}</button>
-        <span aria-hidden="true">/</span><span>${escapeHtml(note.location || "资料库最外层")}</span>
+        <span aria-hidden="true">/</span><span>${escapeHtml(note.location || t("资料库最外层"))}</span>
       </nav>
       <header class="note-header">
-        <div class="note-context"><span class="unit-label">Markdown document</span><span class="preview-label">Local-first</span></div>
+        <div class="note-context"><span class="unit-label">${t("Markdown document")}</span><span class="preview-label">${t("Local-first")}</span></div>
         <h1>${escapeHtml(note.title)}</h1>
         <p class="note-subtitle">${escapeHtml(note.relativePath || note.location || "")}</p>
-        <div class="note-meta"><span>Updated ${escapeHtml(note.updated || "locally")}</span></div>
+        <div class="note-meta"><span>${escapeHtml(t("updated", { time: note.updated || t("locally") }))}</span></div>
       </header>
-      <article class="article markdown-article" id="markdown-article" aria-live="polite"><div class="note-loading" role="status"><p>正在载入文档…</p></div></article>
+      <article class="article markdown-article" id="markdown-article" aria-live="polite"><div class="note-loading" role="status"><p>${t("正在载入文档…")}</p></div></article>
       ${renderPagination(note)}
     </div>` : `
     <div class="reading-container">
-      <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <nav class="breadcrumbs" aria-label="${t("Breadcrumb")}">
         <button type="button" data-view="overview">${escapeHtml(portalData.label)}</button>
         <span aria-hidden="true">/</span>
         <span>${unit.code}</span>
@@ -1956,19 +1964,19 @@ async function renderNote(note, options = {}) {
             <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>
             Local Markdown copy
           </span>
-          <span>Updated ${escapeHtml(note.updated || "locally")}</span>
+          <span>Updated ${escapeHtml(note.updated || t("locally"))}</span>
          </div>
        </header>
 
        <section class="last-read-prompt" id="last-read-prompt" aria-live="polite" hidden>
          <div class="last-read-prompt__copy">
-           <p>上次读到</p>
-           <strong id="last-read-heading">章节</strong>
-           <span id="last-read-meta">可一键跳转到上次的阅读位置</span>
+           <p>${t("上次读到")}</p>
+           <strong id="last-read-heading">${t("章节")}</strong>
+           <span id="last-read-meta">${t("可一键跳转到上次的阅读位置")}</span>
          </div>
          <div class="last-read-prompt__actions">
-           <button class="last-read-prompt__resume" id="last-read-resume" type="button">继续阅读</button>
-           <button class="last-read-prompt__dismiss" id="last-read-dismiss" type="button">暂不跳转</button>
+           <button class="last-read-prompt__resume" id="last-read-resume" type="button">${t("继续阅读")}</button>
+           <button class="last-read-prompt__dismiss" id="last-read-dismiss" type="button">${t("暂不跳转")}</button>
          </div>
        </section>
 
@@ -2016,8 +2024,8 @@ async function renderNote(note, options = {}) {
     if (renderSequence !== noteRenderSequence) return;
     viewRoot.querySelector("#markdown-article").innerHTML = `
       <div class="callout callout--warning">
-        <p class="callout__title">笔记载入失败</p>
-        <p>未能读取 <code>${escapeHtml(note.relativePath || note.path)}</code>。请检查原文件后点击刷新。</p>
+        <p class="callout__title">${t("笔记载入失败")}</p>
+        <p>${escapeHtml(t("readFailed", { path: note.relativePath || note.path }))}</p>
       </div>`;
     tocNavigation.innerHTML = "";
     console.error(error);
@@ -2190,7 +2198,7 @@ function enhanceMarkdownArticle(article) {
     const wrapper = document.createElement("div");
     wrapper.className = "table-wrap";
     wrapper.tabIndex = 0;
-    wrapper.setAttribute("aria-label", "表格，可横向滚动");
+    wrapper.setAttribute("aria-label", t("表格，可横向滚动"));
     table.before(wrapper);
     wrapper.append(table);
   });
@@ -2354,24 +2362,24 @@ function renderPagination(note) {
 
   return `
     <div class="note-endcap">
-      <nav class="note-pagination" aria-label="上一篇和下一篇笔记">
+      <nav class="note-pagination" aria-label="${t("上一篇和下一篇笔记")}">
         ${
           previous
-            ? `<button class="pagination-button" type="button" data-note-id="${previous.id}"><span>Previous note</span><strong>${escapeHtml(portalData.desktop || portalData.profile === "general" ? previous.title : `${previous.unitCode} · ${formatWeekLabel(previous)}`)}</strong></button>`
+            ? `<button class="pagination-button" type="button" data-note-id="${previous.id}"><span>${t("Previous note")}</span><strong>${escapeHtml(portalData.desktop || portalData.profile === "general" ? previous.title : `${previous.unitCode} · ${formatWeekLabel(previous)}`)}</strong></button>`
             : "<span></span>"
         }
         ${
           next
-            ? `<button class="pagination-button" type="button" data-note-id="${next.id}"><span>Next note</span><strong>${escapeHtml(portalData.desktop || portalData.profile === "general" ? next.title : `${next.unitCode} · ${formatWeekLabel(next)}`)}</strong></button>`
+            ? `<button class="pagination-button" type="button" data-note-id="${next.id}"><span>${t("Next note")}</span><strong>${escapeHtml(portalData.desktop || portalData.profile === "general" ? next.title : `${next.unitCode} · ${formatWeekLabel(next)}`)}</strong></button>`
             : "<span></span>"
         }
       </nav>
-      <footer class="portal-attribution" aria-label="Portal copyright">
+      <footer class="portal-attribution" aria-label="${t("Portal copyright")}">
         <span>Note Portal</span>
         <span aria-hidden="true">·</span>
-        <span>Markdown reader</span>
+        <span>${t("Markdown reader")}</span>
         <span aria-hidden="true">·</span>
-        <span>Local-first</span>
+        <span>${t("Local-first")}</span>
       </footer>
     </div>`;
 }
@@ -2403,7 +2411,7 @@ function renderLibraryHome(options = {}) {
   viewRoot.innerHTML = `
     <div class="library-home-container">
       <header class="library-home-header">
-        <h1>选择学期</h1>
+        <h1>${t("选择学期")}</h1>
         <p>选择一个学期，进入 Unit 与周次导航。</p>
       </header>
 
@@ -2447,7 +2455,7 @@ function renderOverviewNoteList(notes, unit = null) {
                 <span class="overview-note-row__meta">${escapeHtml(location)}</span>
                 <span class="overview-note-row__copy">
                   <strong>${escapeHtml(note.title)}</strong>
-                  <small>Updated ${escapeHtml(note.updated || "locally")}</small>
+                  <small>Updated ${escapeHtml(note.updated || t("locally"))}</small>
                 </span>
                 <svg class="overview-note-row__chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
               </button>
@@ -2536,10 +2544,10 @@ function renderOverview(options = {}) {
               <div class="continue-reading__copy">
                 <h2 id="continue-reading-title">Continue reading</h2>
                 <p class="continue-reading__title">${escapeHtml(continueNote.title)}</p>
-                <p class="continue-reading__meta">${escapeHtml(continueUnit.code)} · ${formatWeekLabel(continueNote)} · Updated ${escapeHtml(continueNote.updated || "locally")}</p>
+                <p class="continue-reading__meta">${escapeHtml(continueUnit.code)} · ${formatWeekLabel(continueNote)} · Updated ${escapeHtml(continueNote.updated || t("locally"))}</p>
               </div>
               <button class="continue-reading__action" type="button" data-note-id="${continueNote.id}">
-                <span>继续阅读</span>
+                <span>${t("继续阅读")}</span>
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
               </button>
             </section>`
@@ -2646,11 +2654,11 @@ function renderDesktopOverview(options = {}) {
   closeMobileNavigation();
   viewRoot.innerHTML = `<div class="overview-container general-overview">
     <header class="overview-header"><h1>${escapeHtml(portalData.label)}</h1>
-      <p class="overview-header__meta">${flatNotes.length} documents · Last synced ${escapeHtml(formatSyncTime(portalData.generatedAt))}</p>
-      <p>${portalData.profile === "study" ? "按学期、Unit 与 Week 浏览 Markdown 主笔记。" : "按原有文件夹浏览 Markdown。"}外部工具保存文件后，目录与当前文档会自动更新。</p>
+      <p class="overview-header__meta">${t("documentsCount", { count: flatNotes.length })} · ${escapeHtml(t("lastSynced", { time: formatSyncTime(portalData.generatedAt) }))}</p>
+      <p>${portalData.profile === "study" ? t("按学期、Unit 与 Week 浏览 Markdown 主笔记。") : t("按原有文件夹浏览 Markdown。")}${t("外部工具保存文件后，目录与当前文档会自动更新。")}</p>
     </header>
-    ${flatNotes.length ? `<section class="general-overview__tree" aria-label="文件夹与文档">${generalTreeHtml(portalData.tree || [])}</section>`
-      : '<p class="portal-empty-state" role="status">这个资料库还没有可阅读的 Markdown 文档。</p>'}
+    ${flatNotes.length ? `<section class="general-overview__tree" aria-label="${t("文件夹与文档")}">${generalTreeHtml(portalData.tree || [])}</section>`
+      : `<p class="portal-empty-state" role="status">${t(portalManifestAvailable ? "这个资料库还没有可阅读的 Markdown 文档。" : portalManifestLoadComplete ? "libraryUnavailable" : "Loading library…")}</p>`}
   </div>`;
   viewRoot.querySelectorAll("[data-note-id]").forEach((button) => {
     button.addEventListener("click", () => openNote(button.dataset.noteId));
@@ -2872,9 +2880,9 @@ function setUtilityTab(tab, options = {}) {
   tocView.hidden = !showingToc;
   preferencesView.hidden = !showingPreferences;
   assistantView.hidden = !showingAssistant;
-  const panelLabel = showingAssistant ? "问笔记" : showingPreferences ? "阅读外观" : "本页目录";
+  const panelLabel = showingAssistant ? t("问笔记") : showingPreferences ? t("阅读外观") : t("本页目录");
   tocPanel.setAttribute("aria-label", panelLabel);
-  tocClose.setAttribute("aria-label", `关闭${panelLabel}`);
+  tocClose.setAttribute("aria-label", t("closePanel", { panel: panelLabel }));
   if (showingAssistant) refreshAssistantStatus();
   if (options.focus) (showingAssistant ? assistantTab : showingPreferences ? preferencesTab : tocTab).focus();
 }
@@ -2891,9 +2899,9 @@ function openUtilityPanel(tab = "toc", trigger = null) {
   assistantToggle.setAttribute("aria-expanded", String(showingAssistant));
   tocToggle.setAttribute(
     "aria-label",
-    showingAssistant ? "打开本页目录" : showingPreferences ? "关闭阅读外观" : "关闭本页目录",
+    showingAssistant ? t("打开本页目录") : showingPreferences ? t("关闭阅读外观") : t("关闭本页目录"),
   );
-  assistantToggle.setAttribute("aria-label", showingAssistant ? "关闭问笔记" : "打开问笔记");
+  assistantToggle.setAttribute("aria-label", showingAssistant ? t("关闭问笔记") : t("打开问笔记"));
   updateDrawerAccessibility();
   tocClose.focus();
 }
@@ -2922,8 +2930,8 @@ function closeTocNavigation(restoreFocus = false) {
   document.body.classList.remove("toc-open");
   tocToggle.setAttribute("aria-expanded", "false");
   assistantToggle.setAttribute("aria-expanded", "false");
-  tocToggle.setAttribute("aria-label", "打开本页目录");
-  assistantToggle.setAttribute("aria-label", "打开问笔记");
+  tocToggle.setAttribute("aria-label", t("打开本页目录"));
+  assistantToggle.setAttribute("aria-label", t("打开问笔记"));
   updateDrawerAccessibility();
   if (restoreFocus && wasOpen) lastUtilityTrigger?.focus();
 }
@@ -3037,16 +3045,16 @@ function updateNavigationToggle() {
     document.body.classList.remove("nav-open", "toc-open");
     tocToggle.setAttribute("aria-expanded", "false");
     assistantToggle.setAttribute("aria-expanded", "false");
-    tocToggle.setAttribute("aria-label", "打开本页目录");
-    assistantToggle.setAttribute("aria-label", "打开问笔记");
+    tocToggle.setAttribute("aria-label", t("打开本页目录"));
+    assistantToggle.setAttribute("aria-label", t("打开问笔记"));
   } else {
     cancelSidebarAutoCollapse();
   }
   document.body.classList.toggle("sidebar-collapsed", collapsed);
   navToggle.setAttribute("aria-expanded", String(desktop ? !collapsed : document.body.classList.contains("nav-open")));
-  navToggle.setAttribute("aria-label", desktop ? (collapsed ? "展开课程导航" : "收起课程导航") : "打开课程导航");
+  navToggle.setAttribute("aria-label", desktop ? (collapsed ? t("展开课程导航") : t("收起课程导航")) : t("打开课程导航"));
   sidebarEdgeToggle.setAttribute("aria-expanded", String(!collapsed));
-  sidebarEdgeToggle.setAttribute("aria-label", collapsed ? "展开课程导航" : "收起课程导航");
+  sidebarEdgeToggle.setAttribute("aria-label", collapsed ? t("展开课程导航") : t("收起课程导航"));
   updateDrawerAccessibility();
   updateImmersionControls();
 }
@@ -4052,7 +4060,7 @@ function renderNoteSearchResults(query = "") {
       )
     : flatNotes;
 
-  searchCount.textContent = `${matches.length} ${matches.length === 1 ? "note" : "notes"}`;
+  searchCount.textContent = t("notesCount", { count: matches.length });
   searchResults.innerHTML = matches.length
     ? matches
         .map(
@@ -4066,7 +4074,7 @@ function renderNoteSearchResults(query = "") {
             </button>`,
         )
         .join("")
-    : '<p class="search-empty">没有找到匹配的笔记。</p>';
+    : `<p class="search-empty">${t("没有找到匹配的笔记。")}</p>`;
 
   searchResults.querySelectorAll("[data-note-id]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -4113,11 +4121,11 @@ async function renderFullTextSearchResults(query) {
   const requestSequence = ++searchRequestSequence;
   searchRequestController?.abort();
   searchRequestController = new AbortController();
-  searchCount.textContent = "正在检索正文…";
+  searchCount.textContent = t("正在检索正文…");
   searchResults.innerHTML = `
     <div class="search-loading" role="status">
       <span></span><span></span><span></span>
-      <p>正在服务器上检索全部笔记</p>
+      <p>${t("正在服务器上检索全部笔记")}</p>
     </div>`;
 
   try {
@@ -4130,7 +4138,7 @@ async function renderFullTextSearchResults(query) {
     if (requestSequence !== searchRequestSequence || searchInput.value.trim() !== trimmedQuery) return;
 
     const results = Array.isArray(payload.results) ? payload.results : [];
-    searchCount.textContent = `${results.length} ${results.length === 1 ? "result" : "results"}`;
+    searchCount.textContent = t("resultsCount", { count: results.length });
     searchResults.innerHTML = results.length
       ? results
           .map(
@@ -4150,16 +4158,16 @@ async function renderFullTextSearchResults(query) {
               </button>`,
           )
           .join("")
-      : '<p class="search-empty">全文中没有找到匹配内容。可以尝试更短的关键词或英文术语。</p>';
+      : `<p class="search-empty">${t("全文中没有找到匹配内容。可以尝试更短的关键词或英文术语。")}</p>`;
     bindSearchResultButtons(trimmedQuery);
   } catch (error) {
     if (error.name === "AbortError") return;
     if (requestSequence !== searchRequestSequence) return;
-    searchCount.textContent = "Search unavailable";
+    searchCount.textContent = t("Search unavailable");
     searchResults.innerHTML = `
       <div class="search-error" role="status">
-        <strong>全文检索服务暂时不可用</strong>
-        <span>笔记阅读不受影响；请稍后重试，或检查 Note Portal 服务。</span>
+        <strong>${t("全文检索服务暂时不可用")}</strong>
+        <span>${t("笔记阅读不受影响；请稍后重试，或检查 Note Portal 服务。")}</span>
       </div>`;
     console.error("[Search]", error);
   }
@@ -4268,6 +4276,20 @@ printTrigger.addEventListener("click", printCurrentNote);
 searchClose.addEventListener("click", () => searchDialog.close());
 searchInput.addEventListener("input", (event) => scheduleFullTextSearch(event.target.value));
 settingsTrigger.addEventListener("click", openSettingsDialog);
+const readerLanguage = document.querySelector("#reader-language");
+readerLanguage.value = window.NotePortalI18n.choice;
+readerLanguage.addEventListener("change", () => {
+  try {
+    window.NotePortalI18n.saveChoice(readerLanguage.value);
+    saveScrollPosition();
+    window.location.reload();
+  } catch {
+    readerLanguage.value = window.NotePortalI18n.choice;
+    const error = document.querySelector("#reader-language-error");
+    error.textContent = t("languageStorageError");
+    error.hidden = false;
+  }
+});
 settingsClose.addEventListener("click", () => closeDialog(settingsDialog));
 settingsFeedback.addEventListener("click", () => void openFeedbackDialog());
 settingsWelcome.addEventListener("click", () => openWelcomeDialog({ force: true }));

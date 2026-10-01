@@ -46,6 +46,7 @@ const READER_INDEX: &str = include_str!("../../reader/index.html");
 const READER_APP: &[u8] = include_bytes!("../../reader/app.js");
 const READER_STYLES: &[u8] = include_bytes!("../../reader/styles.css");
 const READER_THEME: &[u8] = include_bytes!("../../reader/theme-init.js");
+const READER_I18N: &[u8] = include_bytes!("../../reader/i18n.js");
 static DESKTOP_ICON: &[u8] = include_bytes!("../icons/icon.png");
 
 #[derive(Clone)]
@@ -72,6 +73,7 @@ struct WebState {
     refresh_lock: Arc<tokio::sync::Mutex<()>>,
     last_error: Arc<RwLock<Option<String>>>,
     branding: Arc<RwLock<Branding>>,
+    ui_language: Arc<RwLock<String>>,
     stopping: watch::Receiver<bool>,
     // Assets whose served bytes no longer matched the snapshot; the next scan reads them again.
     stale_assets: Arc<std::sync::Mutex<HashSet<String>>>,
@@ -83,6 +85,7 @@ pub struct Service {
     pub snapshot: Arc<RwLock<Arc<Snapshot>>>,
     pub last_error: Arc<RwLock<Option<String>>>,
     pub branding: Arc<RwLock<Branding>>,
+    pub ui_language: Arc<RwLock<String>>,
     shutdown: Option<oneshot::Sender<()>>,
     stopping: watch::Sender<bool>,
     watcher: JoinHandle<()>,
@@ -112,12 +115,17 @@ fn guarded_response(status: StatusCode) -> Response {
     response
 }
 
-fn expired_session_response() -> Response {
-    const BODY: &str = "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><title>Note Portal · 阅读会话已结束</title><h1>阅读会话已结束</h1><p>请在 Note Portal 控制窗口点击“打开阅读器”，重新打开本机阅读页。</p><h1>Reading session expired</h1><p>Open the Note Portal control window and choose Open reader to start a new local reading session.</p></html>";
+fn expired_session_response(language: &str) -> Response {
+    // There is no authorised reader session here, so use the control-window preference.
+    let body = if language == "zh" {
+        "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><title>Note Portal · 阅读会话已结束</title><h1>阅读会话已结束</h1><p>请在 Note Portal 控制窗口点击“打开阅读器”，重新打开本机阅读页。</p></html>"
+    } else {
+        "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Note Portal · Reading session expired</title><h1>Reading session expired</h1><p>Open the Note Portal control window and choose Open reader to start a new local reading session.</p></html>"
+    };
     let mut response = (
         StatusCode::FORBIDDEN,
         [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        BODY,
+        body,
     )
         .into_response();
     secure_headers(&mut response);
@@ -203,7 +211,7 @@ async fn request_guard(
         .and_then(|value| value.to_str().ok());
     if !has_session_cookie(cookie, &state.access_token) {
         return if request.method() == Method::GET && request.uri().path() == "/" {
-            expired_session_response()
+            expired_session_response(&state.ui_language.read().await)
         } else {
             guarded_response(StatusCode::FORBIDDEN)
         };
@@ -230,6 +238,7 @@ fn reader_asset(path: &str) -> Response {
         "app.js" => READER_APP,
         "styles.css" => READER_STYLES,
         "theme-init.js" => READER_THEME,
+        "i18n.js" => READER_I18N,
         _ if path.starts_with("vendor/") => {
             let Some(file) = READER_VENDOR.get_file(&path["vendor/".len()..]) else {
                 return StatusCode::NOT_FOUND.into_response();
@@ -251,8 +260,8 @@ async fn index() -> Response {
     let html = READER_INDEX
         .replace("<body>", "<body class=\"profile-desktop\">")
         .replace(
-            "  <script src=\"app.js",
-            "  <script src=\"notes-manifest.js\"></script>\n  <script src=\"app.js",
+            "  <script src=\"i18n.js",
+            "  <script src=\"notes-manifest.js\"></script>\n  <script src=\"i18n.js",
         );
     let mut response = ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response();
     response.headers_mut().insert(
@@ -301,7 +310,9 @@ async fn static_file(uri: Uri) -> Response {
 
 async fn manifest(State(state): State<WebState>) -> Response {
     let snapshot = state.snapshot.read().await;
-    let body = format!("window.PORTAL_DATA = {};", snapshot.manifest);
+    let mut data = snapshot.manifest.clone();
+    data["language"] = json!(*state.ui_language.read().await);
+    let body = format!("window.PORTAL_DATA = {data};");
     (
         [(
             header::CONTENT_TYPE,
@@ -583,6 +594,7 @@ pub async fn start(
     profile: Profile,
     branding: Branding,
     preferred_port: Option<u16>,
+    language: String,
 ) -> Result<(Service, WebHandle), String> {
     let started = std::time::Instant::now();
     diagnostics::event("scan.start");
@@ -633,6 +645,7 @@ pub async fn start(
         refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         last_error: Arc::new(RwLock::new(None)),
         branding: Arc::new(RwLock::new(branding)),
+        ui_language: Arc::new(RwLock::new(language)),
         stopping: stopping_rx,
         stale_assets: Arc::new(std::sync::Mutex::new(HashSet::new())),
     };
@@ -698,6 +711,7 @@ pub async fn start(
         snapshot: state.snapshot.clone(),
         last_error: state.last_error.clone(),
         branding: state.branding.clone(),
+        ui_language: state.ui_language.clone(),
         shutdown: Some(shutdown_tx),
         stopping: stopping_tx,
         watcher: watcher_task,
@@ -748,6 +762,7 @@ mod tests {
                 color: "#14684e",
                 logo: None,
             })),
+            ui_language: Arc::new(RwLock::new("en".into())),
             stopping: watch::channel(false).1,
             stale_assets: Arc::new(std::sync::Mutex::new(HashSet::new())),
         })
@@ -840,6 +855,7 @@ mod tests {
                 logo: None,
             },
             None,
+            "en".into(),
         )
         .await
         .unwrap();
@@ -900,6 +916,7 @@ mod tests {
                 logo: None,
             },
             None,
+            "en".into(),
         )
         .await
         .unwrap();
@@ -955,6 +972,7 @@ mod tests {
             Profile::General,
             brand.clone(),
             Some(preferred),
+            "en".into(),
         )
         .await
         .unwrap();
@@ -967,6 +985,7 @@ mod tests {
             Profile::General,
             brand,
             Some(occupied_port),
+            "en".into(),
         )
         .await
         .unwrap();
@@ -977,6 +996,11 @@ mod tests {
     #[test]
     fn embedded_assets_are_explicitly_allowlisted() {
         assert_eq!(reader_asset("app.js").status(), StatusCode::OK);
+        assert_eq!(reader_asset("i18n.js").status(), StatusCode::OK);
+        assert_eq!(
+            reader_asset("i18n.test.cjs").status(),
+            StatusCode::NOT_FOUND
+        );
         assert_eq!(
             reader_asset("vendor/marked.umd.js").status(),
             StatusCode::OK
@@ -990,6 +1014,59 @@ mod tests {
             reader_asset("../.git/config").status(),
             StatusCode::NOT_FOUND
         );
+    }
+
+    #[tokio::test]
+    async fn manifest_language_tracks_controller_without_mutating_notes() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("a.md"), "# 设置\n正文保持不变").unwrap();
+        let handle = test_handle(root.path(), Profile::General);
+        for language in ["en", "zh"] {
+            *handle.0.ui_language.write().await = language.into();
+            let response = manifest(State(handle.0.clone())).await;
+            let body = axum::body::to_bytes(response.into_body(), 100_000)
+                .await
+                .unwrap();
+            let text = String::from_utf8(body.to_vec()).unwrap();
+            let data: serde_json::Value = serde_json::from_str(
+                text.strip_prefix("window.PORTAL_DATA = ")
+                    .unwrap()
+                    .trim_end_matches(';'),
+            )
+            .unwrap();
+            assert_eq!(data["language"], language);
+            assert_eq!(data["documents"][0]["title"], "设置");
+            assert!(handle
+                .0
+                .snapshot
+                .read()
+                .await
+                .manifest
+                .get("language")
+                .is_none());
+        }
+        assert_eq!(
+            fs::read_to_string(root.path().join("a.md")).unwrap(),
+            "# 设置\n正文保持不变"
+        );
+    }
+
+    #[tokio::test]
+    async fn expired_session_is_localised_without_weakening_headers() {
+        for (language, expected, absent) in [
+            ("en", "Reading session expired", "阅读会话已结束"),
+            ("zh", "阅读会话已结束", "Reading session expired"),
+        ] {
+            let response = expired_session_response(language);
+            assert_eq!(response.status(), StatusCode::FORBIDDEN);
+            assert_eq!(response.headers()["x-frame-options"], "DENY");
+            let body = axum::body::to_bytes(response.into_body(), 10_000)
+                .await
+                .unwrap();
+            let text = String::from_utf8(body.to_vec()).unwrap();
+            assert!(text.contains(expected));
+            assert!(!text.contains(absent));
+        }
     }
 
     #[tokio::test]

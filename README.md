@@ -111,7 +111,8 @@ renames or deletes your Markdown files.
   notification area. If you cannot find the icon, launch Note Portal again to
   reopen the window. On Windows 11 you can keep the icon visible under
   **Settings → Personalization → Taskbar → Other system tray icons**.
-- The browser reader interface is currently Chinese only; the control window
+- The previously published beta's browser reader is Chinese only; development
+  and new CI builds include the bilingual reader described below. The control window
   is available in Chinese and English.
 - A library can hold at most 64 MiB of Markdown in total, and at most 8 MiB
   per note; images count separately, up to 32 MiB each. Split a larger
@@ -205,9 +206,7 @@ records completed checks and the remaining work:
   documentation must be ready before publishing 1.0.
 
 Other tracked improvements include root-absolute image paths
-([#66](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/66)),
-and the English reader interface
-([#71](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/71)).
+([#66](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/66)).
 Open enhancement issues do not by themselves mean an existing workflow is
 broken; stable acceptance is defined by the PRD and release checklist.
 
@@ -222,6 +221,19 @@ public issue. Windows stores logs under
 开发版本已加入 **设置 → 本地诊断**，可以打开日志文件夹，或复制版本、系统和
 本次运行最近错误的摘要。日志仅保存在本机，不记录笔记正文、文件路径或会话令牌；
 每份最多 1 MiB，另保留最多三份历史日志。提交公开 Issue 前请先检查内容。
+
+The desktop reader in development builds also supports Chinese and English.
+It follows the control-window language by default. **Reader Settings → Interface
+language** offers a browser-local override or **Follow app**; refresh an open
+reader after changing the control-window language. Document contents, titles,
+headings and folder names remain in their original language. These changes are
+in source/CI builds, not the previously published beta. The root static reader
+is unchanged.
+
+开发版本的桌面阅读页已支持中英双语，默认跟随控制窗口。阅读页 **设置 → 界面语言**
+可选择“跟随应用”、中文或 English，选择仅保存在当前浏览器。修改控制窗口语言后，
+请刷新已打开的阅读页。笔记正文、标题、章节和文件夹名称保持原文。
+这些功能在源码与 CI 构建中，旧的 beta 下载包不会自动获得更新；根目录静态阅读页未改动。
 
 ## Code signing policy
 

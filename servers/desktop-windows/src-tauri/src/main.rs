@@ -101,9 +101,17 @@ struct Settings {
     theme_color: ThemeColor,
     logo_file: Option<String>,
     preferred_port: Option<u16>,
+    ui_language: Option<String>,
 }
 
 impl Settings {
+    fn language(&self) -> &str {
+        self.ui_language
+            .as_deref()
+            .filter(|language| matches!(*language, "zh" | "en"))
+            .unwrap_or_else(|| platform::system_language())
+    }
+
     fn accepted(&self) -> bool {
         self.notice_version.as_deref() == Some(NOTICE_VERSION) && self.accepted_at.is_some()
     }
@@ -943,6 +951,7 @@ async fn activate(
         selection.profile,
         branding,
         existing_settings.preferred_port,
+        existing_settings.language().to_owned(),
     )
     .await
     .inspect_err(|_| diagnostics::failure("service.start_failed"))?;
@@ -1412,9 +1421,35 @@ fn tray_menu(app: &AppHandle, language: &str) -> tauri::Result<Menu<tauri::Wry>>
 }
 
 #[tauri::command]
-fn set_ui_language(app: AppHandle, language: String) -> Result<(), String> {
+async fn set_ui_language(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    language: String,
+) -> Result<(), String> {
     if language != "zh" && language != "en" {
         return Err("Unsupported interface language".into());
+    }
+    let _operation = state.operation.lock().await;
+    {
+        let mut settings = state.settings.lock().map_err(|_| "本机设置暂时不可用。")?;
+        if settings.ui_language.as_deref() != Some(language.as_str()) {
+            let mut next = settings.clone();
+            next.ui_language = Some(language.clone());
+            // The recovery screen must still be translatable without overwriting damaged settings.
+            if !state.has_settings_error() {
+                state.save(&next)?;
+            }
+            *settings = next;
+        }
+    }
+    let live_language = state
+        .running
+        .lock()
+        .map_err(|_| "本地服务暂时不可用。")?
+        .as_ref()
+        .map(|running| running.service.ui_language.clone());
+    if let Some(live_language) = live_language {
+        *live_language.write().await = language.clone();
     }
     let menu = tray_menu(&app, &language).map_err(|_| "Unable to update taskbar menu")?;
     app.tray_by_id("note-portal-tray")
@@ -1478,7 +1513,13 @@ fn main() {
             app.manage(state.clone());
             diagnostics::elapsed("settings.loaded", started);
 
-            let menu = tray_menu(app.handle(), platform::system_language())?;
+            let language = state
+                .settings
+                .lock()
+                .map_err(|_| "本机设置暂时不可用。")?
+                .language()
+                .to_owned();
+            let menu = tray_menu(app.handle(), &language)?;
             let icon = app.default_window_icon().ok_or("缺少应用图标")?.clone();
             TrayIconBuilder::with_id("note-portal-tray")
                 .icon(icon)
@@ -1599,6 +1640,19 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_language_is_optional_and_round_trips_without_changing_other_settings() {
+        let mut settings: Settings = serde_json::from_str(r#"{"launchAtLogin":true}"#).unwrap();
+        assert_eq!(settings.language(), platform::system_language());
+        settings.ui_language = Some("en".into());
+        let restored: Settings =
+            serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
+        assert_eq!(restored.language(), "en");
+        assert!(restored.launch_at_login);
+        settings.ui_language = Some("unknown".into());
+        assert_eq!(settings.language(), platform::system_language());
+    }
 
     #[tokio::test]
     async fn automatic_activation_reports_starting_until_it_finishes() {

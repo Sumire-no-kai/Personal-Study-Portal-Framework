@@ -74,11 +74,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install frontend dependencies
         run: npm ci
+      - name: Test reader localisation
+        run: npm test
       - name: Check reader and frontend
         run: |
           node --check reader/app.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check reader/theme-init.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check reader/i18n.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
