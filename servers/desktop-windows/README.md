@@ -47,6 +47,9 @@ content.
   [English](docs/GETTING_STARTED.en.md).
 - A release-install and device QA checklist, including Windows on ARM, is in
   [docs/WINDOWS_TEST_PLAN.zh-CN.md](docs/WINDOWS_TEST_PLAN.zh-CN.md).
+- The [2026-10-01 x64/ARM64 retest task](docs/WINDOWS_MASTER_RETEST_2026-10-01.zh-CN.md)
+  pins the current test build and covers images, reader languages, diagnostics,
+  normal-desktop performance, cold start and remaining hands-on checks.
 
 ## One project, two platforms
 

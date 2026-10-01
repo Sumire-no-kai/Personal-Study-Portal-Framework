@@ -2,6 +2,10 @@
 
 > [!IMPORTANT]
 > **当前进行中的检查清单：[#57 Windows 1.0 正式版发布前检查清单](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/57)。**测试哪个版本、谁测哪些项目、结果写在哪里，都以该 issue 为准；开始前先按 issue 开头核对安装包 SHA-256 和“关于”里的版本号。
+>
+> **2026-10-01 本轮任务：**请先读
+> [固定 master 构建的 x64/ARM64 测试步骤](WINDOWS_MASTER_RETEST_2026-10-01.zh-CN.md)。
+> 它使用指定的 Actions run 和 EXE 哈希，不是已发布的旧 beta；下方历次结果保留为历史记录。
 
 本计划供另一台 Windows 电脑上的测试者执行，重点是 **Windows on ARM**。它验证已发布的安装包，不把 CI 编译成功当作安装、运行成功。测试者只记录问题；未经项目负责人要求，不修改源码、不提交 PR、不重新发布。
 
