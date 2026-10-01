@@ -2119,11 +2119,17 @@ function resolveArticleAssetUrls(article, notePath, assetVersion = "") {
     }
   };
 
+  // Portal notes write images as `/assets/...`, relative to the content root that the portal
+  // serves as `/`. Map them into this library; the server still serves only scanned assets.
+  const contentRoot = portalData.profile === "study" ? "content/" : "";
+  const isRootAbsolute = (value) => value.startsWith("/") && !value.startsWith("//");
+
   article.querySelectorAll("img[src], video[src], audio[src], source[src], embed[src]")
     .forEach((element) => {
       const value = element.getAttribute("src").trim();
-      if (!isRelative(value)) return;
-      const resolved = resolve(value);
+      const libraryValue = isRootAbsolute(value) ? `/library/${contentRoot}${value.slice(1)}` : null;
+      if (!libraryValue && !isRelative(value)) return;
+      const resolved = resolve(libraryValue ?? value);
       if (resolved) element.setAttribute("src", resolved);
     });
 
