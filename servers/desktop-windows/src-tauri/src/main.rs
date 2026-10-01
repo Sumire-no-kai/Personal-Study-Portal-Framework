@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod diagnostics;
 mod library;
 mod platform;
 mod server;
@@ -214,7 +215,10 @@ impl AppState {
         };
         let (settings, settings_error) = match loaded {
             Ok(settings) => (settings, None),
-            Err(error) => (Settings::default(), Some(error)),
+            Err(error) => {
+                diagnostics::failure("settings.load_failed");
+                (Settings::default(), Some(error))
+            }
         };
         Arc::new(Self {
             settings_path,
@@ -229,6 +233,14 @@ impl AppState {
     }
 
     fn save(&self, settings: &Settings) -> Result<(), String> {
+        let result = self.write_settings(settings);
+        if result.is_err() {
+            diagnostics::failure("settings.save_failed");
+        }
+        result
+    }
+
+    fn write_settings(&self, settings: &Settings) -> Result<(), String> {
         let parent = self.settings_path.parent().ok_or("设置路径无效。")?;
         fs::create_dir_all(parent).map_err(|_| "无法创建本机设置文件夹。")?;
         if self
@@ -892,6 +904,8 @@ async fn activate(
     selection: Selection,
     open_browser: bool,
 ) -> Result<Status, String> {
+    let started = std::time::Instant::now();
+    diagnostics::event("activation.start");
     state.ensure_ready()?;
     let _operation = state.operation.lock().await;
     let root = selection
@@ -930,7 +944,8 @@ async fn activate(
         branding,
         existing_settings.preferred_port,
     )
-    .await?;
+    .await
+    .inspect_err(|_| diagnostics::failure("service.start_failed"))?;
     let mut next = state
         .settings
         .lock()
@@ -970,9 +985,11 @@ async fn activate(
         *branding_warning = warning;
     }
     if open_browser && app.opener().open_url(browser_url, None::<&str>).is_err() {
+        diagnostics::failure("browser.open_failed");
         *last_error.write().await =
             Some("服务已经启动，但无法自动打开浏览器。请点击“打开阅读器”重试。".into());
     }
+    diagnostics::elapsed("activation.complete", started);
     Ok(current_status(state).await)
 }
 
@@ -1320,6 +1337,17 @@ fn quit(app: AppHandle) {
 // The control window is built on demand and destroyed when closed, so its WebView2 processes do
 // not stay resident while only the tray and the local service are needed.
 fn show_window(app: &AppHandle) -> tauri::Result<()> {
+    let started = std::time::Instant::now();
+    diagnostics::event("window.show_start");
+    let result = show_control_window(app);
+    if result.is_err() {
+        diagnostics::failure("window.show_failed");
+    }
+    diagnostics::elapsed("window.show_complete", started);
+    result
+}
+
+fn show_control_window(app: &AppHandle) -> tauri::Result<()> {
     let window = match app.get_webview_window("main") {
         Some(window) => window,
         None => {
@@ -1334,8 +1362,8 @@ fn show_window(app: &AppHandle) -> tauri::Result<()> {
         }
     };
     window.show()?;
-    let _ = window.unminimize();
-    let _ = window.set_focus();
+    window.unminimize()?;
+    window.set_focus()?;
     Ok(())
 }
 
@@ -1347,6 +1375,7 @@ fn clear_reported_error(state: &AppState) {
 }
 
 fn report_tray_error(app: &AppHandle, error: String) {
+    diagnostics::failure("tray.action_failed");
     let state = app.state::<Arc<AppState>>();
     if let Ok(mut visible_error) = state.startup_error.lock() {
         *visible_error = Some(error.clone());
@@ -1399,6 +1428,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             let _ = show_window(app);
         }))
+        .plugin(diagnostics::plugin())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(
@@ -1409,6 +1439,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_status,
             get_app_version,
+            diagnostics::diagnostic_summary,
+            diagnostics::open_log_folder,
             restore_settings_backup,
             reset_corrupt_settings,
             get_notice,
@@ -1437,9 +1469,13 @@ fn main() {
             quit,
         ])
         .setup(|app| {
+            let started = std::time::Instant::now();
+            diagnostics::startup();
+            diagnostics::event("setup.start");
             let settings_path = app.path().app_data_dir()?.join("settings.json");
             let state = AppState::load(settings_path);
             app.manage(state.clone());
+            diagnostics::elapsed("settings.loaded", started);
 
             let menu = tray_menu(app.handle(), platform::system_language())?;
             let icon = app.default_window_icon().ok_or("缺少应用图标")?.clone();
@@ -1493,6 +1529,7 @@ fn main() {
                     }
                 })
                 .build(app)?;
+            diagnostics::elapsed("tray.ready", started);
 
             let autostart = std::env::args().any(|arg| arg == "--note-portal-autostart");
             // A login launch creates no window at all, so nothing flashes and no WebView2 starts.
@@ -1511,6 +1548,7 @@ fn main() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     if let Err(error) = activate(&app_handle, &state, selection, !autostart).await {
+                        diagnostics::failure("activation.failed");
                         if let Ok(mut startup_error) = state.startup_error.lock() {
                             *startup_error = Some(error);
                         }
@@ -1523,6 +1561,7 @@ fn main() {
             if !start_hidden {
                 show_window(app.handle())?;
             }
+            diagnostics::elapsed("setup.complete", started);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -1541,6 +1580,10 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Note Portal failed to start")
         .run(|_, event| {
+            if matches!(event, RunEvent::Exit) {
+                diagnostics::event("app.exit");
+                log::logger().flush();
+            }
             // Closing the last window must not end the app: the tray and the service keep
             // running. Quit and the notice gate exit explicitly with a code.
             if let RunEvent::ExitRequested {

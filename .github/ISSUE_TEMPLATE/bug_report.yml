@@ -63,6 +63,12 @@ body:
     attributes:
       label: 期望的结果 / Expected behaviour
   - type: textarea
+    id: diagnostics
+    attributes:
+      label: 本地诊断 / Local diagnostics
+      description: 在“设置与条款”中复制诊断信息，或打开日志文件夹并附上相关日志。日志不会自动上传；分享前请检查并遮挡私人信息。 / In Settings and terms, copy diagnostics or open the log folder and attach relevant logs. Nothing is uploaded automatically; review and redact private information before sharing.
+      render: text
+  - type: textarea
     id: extra
     attributes:
       label: 补充信息 / Additional context

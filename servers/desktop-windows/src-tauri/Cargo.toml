@@ -12,6 +12,7 @@ blake3 = "1"
 chrono = { version = "0.4", features = ["serde"] }
 getrandom = "0.3"
 include_dir = "0.7"
+log = "0.4"
 mime_guess = "2"
 notify = "8.2"
 serde = { version = "1", features = ["derive"] }
@@ -21,10 +22,12 @@ tauri = { version = "2.11", features = ["tray-icon"] }
 tauri-plugin-autostart = "2.5"
 tauri-plugin-dialog = "2.7"
 tauri-plugin-opener = "2.5"
+tauri-plugin-log = "2"
 tauri-plugin-single-instance = "2.4"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 walkdir = "2"
 
 [dev-dependencies]
+tauri = { version = "2.11", features = ["test"] }
 tempfile = "3"

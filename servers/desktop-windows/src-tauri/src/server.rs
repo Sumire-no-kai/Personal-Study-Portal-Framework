@@ -36,7 +36,10 @@ use tokio_stream::{
     StreamExt,
 };
 
-use crate::library::{self, Profile, Snapshot};
+use crate::{
+    diagnostics,
+    library::{self, Profile, Snapshot},
+};
 
 static READER_VENDOR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../../vendor");
 const READER_INDEX: &str = include_str!("../../reader/index.html");
@@ -94,6 +97,7 @@ impl Service {
     }
 
     pub fn stop(mut self) {
+        diagnostics::event("service.stop");
         self.watcher.abort();
         let _ = self.stopping.send(true);
         if let Some(shutdown) = self.shutdown.take() {
@@ -461,6 +465,8 @@ async fn events(
 pub async fn refresh(state: &WebHandle) -> Result<bool, String> {
     let current = state.0.clone();
     let _refresh = current.refresh_lock.lock().await;
+    let started = std::time::Instant::now();
+    diagnostics::event("refresh.start");
     let root = current.root.clone();
     let profile = current.profile;
     let previous = current.snapshot.read().await.clone();
@@ -475,15 +481,25 @@ pub async fn refresh(state: &WebHandle) -> Result<bool, String> {
         move || library::scan_with_previous(&root, profile, sequence, Some(&previous), &rehash)
     })
     .await
-    .map_err(|_| "扫描任务意外中断；当前阅读内容保持不变。".to_owned())?;
+    .map_err(|_| {
+        diagnostics::failure("refresh.task_failed");
+        "扫描任务意外中断；当前阅读内容保持不变。".to_owned()
+    })?;
     match staged {
         Ok(mut snapshot) => {
+            diagnostics::scan_complete(
+                started,
+                snapshot.documents.len(),
+                snapshot.asset_hashes.len(),
+                snapshot.diagnostics.len(),
+            );
             // Only a completed scan has reread these assets; a failed one leaves them queued.
             if let Ok(mut stale) = current.stale_assets.lock() {
                 stale.retain(|path| !rehash.contains(path));
             }
             let mut active = current.snapshot.write().await;
             if active.signature == snapshot.signature {
+                diagnostics::event("refresh.unchanged");
                 *current.last_error.write().await = None;
                 return Ok(false);
             }
@@ -492,9 +508,11 @@ pub async fn refresh(state: &WebHandle) -> Result<bool, String> {
             *active = Arc::new(snapshot);
             *current.last_error.write().await = None;
             let _ = current.events.send(release_id);
+            diagnostics::elapsed("refresh.published", started);
             Ok(true)
         }
         Err(error) => {
+            diagnostics::failure("refresh.scan_failed");
             *current.last_error.write().await = Some(error.clone());
             Err(error)
         }
@@ -510,6 +528,7 @@ fn relevant_event(
     snapshot: Option<&Snapshot>,
 ) -> bool {
     let Ok(event) = event else {
+        diagnostics::failure("watcher.event_failed");
         // A watcher overflow or lost-watch notification warrants one full rescan.
         return true;
     };
@@ -565,13 +584,25 @@ pub async fn start(
     branding: Branding,
     preferred_port: Option<u16>,
 ) -> Result<(Service, WebHandle), String> {
+    let started = std::time::Instant::now();
+    diagnostics::event("scan.start");
     let root = root.canonicalize().map_err(|_| "无法打开资料库文件夹。")?;
     let snapshot = tokio::task::spawn_blocking({
         let root = root.clone();
         move || library::scan(&root, profile, 1)
     })
     .await
-    .map_err(|_| "资料库扫描任务意外中断。")??;
+    .map_err(|_| {
+        diagnostics::failure("scan.task_failed");
+        "资料库扫描任务意外中断。"
+    })?
+    .inspect_err(|_| diagnostics::failure("scan.failed"))?;
+    diagnostics::scan_complete(
+        started,
+        snapshot.documents.len(),
+        snapshot.asset_hashes.len(),
+        snapshot.diagnostics.len(),
+    );
     let listener = match preferred_port.filter(|port| *port != 0) {
         Some(port) => match TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await {
             Ok(listener) => listener,
@@ -587,6 +618,7 @@ pub async fn start(
         .local_addr()
         .map_err(|_| "无法确定本地服务端口。")?;
     let access_token = new_session_token()?;
+    diagnostics::elapsed("listener.bound", started);
     let (event_tx, _) = broadcast::channel(32);
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let (stopping_tx, stopping_rx) = watch::channel(false);
@@ -619,11 +651,15 @@ pub async fn start(
         .layer(middleware::from_fn_with_state(state.clone(), request_guard))
         .with_state(state.clone());
     tokio::spawn(async move {
-        let _ = axum::serve(listener, router)
+        if axum::serve(listener, router)
             .with_graceful_shutdown(async {
                 let _ = shutdown_rx.await;
             })
-            .await;
+            .await
+            .is_err()
+        {
+            diagnostics::failure("service.serve_failed");
+        }
     });
 
     let handle = WebHandle(state.clone());
@@ -631,10 +667,16 @@ pub async fn start(
     let mut watcher: RecommendedWatcher = notify::recommended_watcher(move |event| {
         let _ = tx.send(event);
     })
-    .map_err(|_| "无法监控资料库变动；请检查文件夹权限。")?;
+    .map_err(|_| {
+        diagnostics::failure("watcher.create_failed");
+        "无法监控资料库变动；请检查文件夹权限。"
+    })?;
     watcher
         .watch(&root, RecursiveMode::Recursive)
-        .map_err(|_| "无法监控资料库变动；请检查文件夹权限。")?;
+        .map_err(|_| {
+            diagnostics::failure("watcher.watch_failed");
+            "无法监控资料库变动；请检查文件夹权限。"
+        })?;
     let watcher_handle = handle.clone();
     let watcher_task = tokio::spawn(async move {
         let _watcher = watcher;
@@ -660,6 +702,7 @@ pub async fn start(
         stopping: stopping_tx,
         watcher: watcher_task,
     };
+    diagnostics::elapsed("service.started", started);
     Ok((service, handle))
 }
 
