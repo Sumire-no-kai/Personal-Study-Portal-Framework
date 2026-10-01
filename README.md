@@ -107,7 +107,8 @@ renames or deletes your Markdown files.
   Markdown) the test PC used about 130 MiB of memory while idle and took up
   to about 3 seconds to start serving; typical libraries stay below 100 MiB
   and start in well under a second.
-- There is no macOS build yet.
+- macOS has an experimental Apple Silicon Actions build with ad-hoc signing;
+  it is not a supported macOS release. See [desktop signing](servers/desktop-windows/docs/DESKTOP_SIGNING.md).
 - Keep the reader on this computer. Do not expose the local service to a
   network or the public internet.
 
@@ -140,6 +141,14 @@ The [Windows device test plan](servers/desktop-windows/docs/WINDOWS_TEST_PLAN.zh
 covers clean installation, content safety, refresh and native ARM64 checks. Do
 not label a build stable until the Windows device matrix and clean-machine
 checks pass.
+
+## Code signing policy
+
+Windows Releases are currently unsigned. The free SignPath application is being
+prepared; service approval and configuration are still pending. macOS experimental
+builds use ad-hoc signatures, without Apple Developer ID or notarization.
+See the [signing policy and build instructions](servers/desktop-windows/docs/DESKTOP_SIGNING.md)
+for current status, proposed maintainer roles, privacy and verification steps.
 
 ## Deploy the framework
 

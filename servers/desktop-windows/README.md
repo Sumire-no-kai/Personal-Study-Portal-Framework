@@ -49,7 +49,10 @@ notarization, and installer configuration.
 
 The current beta implements the Windows path first, using Tauri 2, a Vanilla
 TypeScript status panel, and one Rust process for scanning, watching, and HTTP.
-The macOS package remains planned, not tested or released. Tauri supports
+An experimental Apple Silicon macOS bundle uses the same source and an ad-hoc
+signature; full macOS runtime acceptance and public release remain pending.
+See [desktop signing](docs/DESKTOP_SIGNING.md) for build instructions and the
+Windows SignPath enrollment preparation. Tauri supports
 system-tray applications and startup registration on both target platforms:
 
 - <https://v2.tauri.app/learn/system-tray/>

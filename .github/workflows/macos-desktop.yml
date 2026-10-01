@@ -1,0 +1,76 @@
+name: macOS experimental desktop
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "servers/desktop-windows/**"
+      - "vendor/**"
+      - ".github/workflows/macos-desktop.yml"
+  push:
+    branches: [master]
+    paths:
+      - "servers/desktop-windows/**"
+      - "vendor/**"
+      - ".github/workflows/macos-desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: servers/desktop-windows
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: servers/desktop-windows/package-lock.json
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: 1.98.1
+          components: rustfmt, clippy
+          targets: aarch64-apple-darwin
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: macos-arm64
+          workspaces: servers/desktop-windows/src-tauri
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Check frontend and Rust
+        run: |
+          node --check reader/app.js
+          node --check reader/theme-init.js
+          npm run build
+          cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+          cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - name: Build ad-hoc signed Apple Silicon app
+        env:
+          APPLE_SIGNING_IDENTITY: "-"
+        run: npx tauri build --target aarch64-apple-darwin --bundles app -- --locked
+      - name: Verify signature and archive app
+        run: |
+          set -euo pipefail
+          bundle="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Note Portal.app"
+          codesign --verify --deep --strict --verbose=2 "$bundle"
+          codesign --display --verbose=4 "$bundle" 2>&1 | tee signing-report.txt
+          grep -Fx 'Signature=adhoc' signing-report.txt
+          test "$(lipo -archs "$bundle/Contents/MacOS/note-portal-desktop")" = arm64
+          mkdir -p macos-artifact
+          ditto -c -k --sequesterRsrc --keepParent "$bundle" macos-artifact/Note.Portal_macos_arm64_experimental.app.zip
+          mv signing-report.txt macos-artifact/
+          cd macos-artifact
+          shasum -a 256 Note.Portal_macos_arm64_experimental.app.zip > SHA256SUMS.txt
+          shasum -a 256 -c SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: note-portal-macos-arm64-experimental
+          path: servers/desktop-windows/macos-artifact/
+          if-no-files-found: error
+          retention-days: 14
