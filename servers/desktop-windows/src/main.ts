@@ -635,10 +635,19 @@ async function showSettings(): Promise<void> {
       ["blue", tr("蓝色", "Blue")], ["violet", tr("紫色", "Violet")],
     ];
     openDialog(tr("设置与使用条款", "Settings and terms"), `<label class="field">${tr("界面语言", "Interface language")}<select id="settings-language"><option value="zh" ${language === "zh" ? "selected" : ""}>中文</option><option value="en" ${language === "en" ? "selected" : ""}>English</option></select></label><fieldset class="branding-field"><legend>${tr("Windows 阅读页主题色", "Windows reader accent colour")}</legend><div class="color-options">${colors.map(([value, label]) => `<button class="color-option ${value}" data-color="${value}" aria-pressed="${status.themeColor === value}" type="button"><span class="color-swatch"></span>${label}</button>`).join("")}</div></fieldset><label class="field">${tr("本地 Logo（可选）", "Local logo (optional)")}<input id="brand-logo" type="file" accept="image/png,image/jpeg,image/webp" /></label><p class="quiet">${status.logoSelected ? tr("已选择 Logo。新图片会替换旧图片。", "A logo is selected. A new image will replace it.") : tr("未选择 Logo，阅读器将只显示 Note Portal 文字。", "No logo selected; the reader shows the Note Portal name only.")} ${tr("仅支持 PNG、JPEG、WebP，最大 2 MiB；图片仅保存在本机，不附带学校官方标识。", "PNG, JPEG and WebP up to 2 MiB. The image stays on this computer; no official school logo is bundled.")}</p>${status.logoSelected ? `<button class="button" id="clear-logo" type="button">${tr("清除 Logo", "Remove logo")}</button>` : ""}<p class="quiet">${tr("更改颜色或 Logo 后，请刷新已打开的浏览器阅读页。", "Refresh an already open browser reader after changing colour or logo.")}</p><label class="check-line"><input id="autostart" type="checkbox" ${status.launchAtLogin ? "checked" : ""} /><span>${tr("登录电脑后在任务栏静默启动服务（不自动打开浏览器）", "Start the local service at login in the taskbar (do not open the browser automatically)")}</span></label><p class="quiet">${tr("本机已同意版本", "Notice version accepted: ")} ${escapeHtml(status.noticeVersion)}${tr("，时间：", ", at ")}${escapeHtml(dateLabel(status.acceptedAt))}${tr("。默认只允许本机访问。", ". Only this computer can connect by default.")}</p><details class="terms-details"><summary>${tr("使用条款、学术诚信与隐私说明", "Terms, academic integrity and privacy")}</summary><div class="markdown-content long-text" id="settings-notice">${html}</div></details><p id="dialog-message" class="message" role="alert" hidden></p>`);
+    dialog.querySelector("#dialog-message")!.insertAdjacentHTML("beforebegin", `<fieldset><legend>${tr("本地诊断", "Local diagnostics")}</legend><p class="quiet">${tr("日志仅保存在本机，不记录笔记正文、文件路径或阅读会话令牌。每份最多 1 MiB，另保留最多 3 份历史日志。分享前请检查内容。", "Logs stay on this computer and exclude note contents, file paths and reading-session tokens. Each file is limited to 1 MiB, with up to 3 archives. Review before sharing.")}</p><div class="button-row"><button class="button" id="open-logs" type="button">${tr("打开日志文件夹", "Open log folder")}</button><button class="button" id="copy-diagnostics" type="button">${tr("复制诊断信息", "Copy diagnostics")}</button></div></fieldset>`);
   } catch (error) {
     showError(String(error));
     return;
   }
+  dialog.querySelector("#open-logs")?.addEventListener("click", () => void action(() => invoke("open_log_folder")));
+  dialog.querySelector("#copy-diagnostics")?.addEventListener("click", () => void action(async () => {
+    const summary = await invoke<string>("diagnostic_summary");
+    await navigator.clipboard.writeText(summary);
+    const message = dialog.querySelector<HTMLElement>("#dialog-message")!;
+    message.textContent = tr("已复制版本、系统和本次运行的最近错误。请检查后再分享。", "Copied version, system and recent errors from this session. Review before sharing.");
+    message.hidden = false;
+  }));
   dialog.querySelector<HTMLSelectElement>("#settings-language")?.addEventListener("change", (event) => {
     saveLanguage((event.target as HTMLSelectElement).value as Language);
     dialog.close();

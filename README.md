@@ -206,12 +206,22 @@ records completed checks and the remaining work:
 
 Other tracked improvements include root-absolute image paths
 ([#66](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/66)),
-local diagnostic logs
-([#70](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/70))
 and the English reader interface
 ([#71](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/71)).
 Open enhancement issues do not by themselves mean an existing workflow is
 broken; stable acceptance is defined by the PRD and release checklist.
+
+Development builds include **Settings → Local diagnostics**: open the log folder
+or copy a summary of the app/system version and recent errors from this session.
+Logs stay local, exclude note contents, file paths and session tokens, and rotate
+at 1 MiB with up to three archives. Review diagnostics before sharing them in a
+public issue. Windows stores logs under
+`%LOCALAPPDATA%\io.github.sumirenokai.noteportal\logs`; macOS uses
+`~/Library/Logs/io.github.sumirenokai.noteportal/`.
+
+开发版本已加入 **设置 → 本地诊断**，可以打开日志文件夹，或复制版本、系统和
+本次运行最近错误的摘要。日志仅保存在本机，不记录笔记正文、文件路径或会话令牌；
+每份最多 1 MiB，另保留最多三份历史日志。提交公开 Issue 前请先检查内容。
 
 ## Code signing policy
 
