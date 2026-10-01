@@ -71,18 +71,25 @@ jobs:
           $hostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
           if ($hostArch -ne "${{ matrix.arch }}") { throw "Expected ${{ matrix.arch }} runner, found $hostArch" }
           rustup target add ${{ matrix.target }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install frontend dependencies
         run: npm ci
       - name: Check reader and frontend
         run: |
           node --check reader/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check reader/theme-init.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check Rust formatting and tests
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --locked --manifest-path src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build unsigned NSIS installer
         run: npx tauri build --target ${{ matrix.target }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
