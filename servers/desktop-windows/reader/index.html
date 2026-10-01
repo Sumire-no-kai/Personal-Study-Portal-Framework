@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="reader-brand.css" />
   </head>
   <body>
-    <a class="skip-link" href="#main-content">跳到笔记正文</a>
+    <a class="skip-link" href="#main-content" data-i18n="跳到笔记正文">跳到笔记正文</a>
 
     <header class="topbar">
       <div class="topbar__identity">
@@ -24,7 +24,7 @@
           class="icon-button mobile-nav-toggle"
           id="nav-toggle"
           type="button"
-          aria-label="收起课程导航"
+          aria-label="收起课程导航" data-i18n-aria-label="收起课程导航"
           aria-controls="sidebar"
           aria-expanded="true"
         >
@@ -36,7 +36,7 @@
           class="brand"
           id="brand-home"
           type="button"
-          aria-label="Note Portal 首页"
+          aria-label="Note Portal 首页" data-i18n-aria-label="Note Portal 首页"
         >
           <span class="brand__product">Note Portal</span>
         </button>
@@ -44,8 +44,8 @@
 
       <div class="topbar__actions">
         <label class="semester-picker" id="semester-picker">
-          <span class="sr-only">选择学期</span>
-          <select id="semester-select" aria-label="选择学期"></select>
+          <span class="sr-only" data-i18n="选择学期">选择学期</span>
+          <select id="semester-select" aria-label="选择学期" data-i18n-aria-label="选择学期"></select>
         </label>
         <div
           class="current-note-indicator"
@@ -55,7 +55,7 @@
           aria-atomic="true"
           hidden
         >
-          <span class="current-note-indicator__label" id="current-note-label">当前笔记</span>
+          <span class="current-note-indicator__label" id="current-note-label" data-i18n="当前笔记">当前笔记</span>
           <span class="current-note-indicator__value">
             <span id="current-note-unit">Unit</span>
             <span aria-hidden="true">·</span>
@@ -68,8 +68,8 @@
             class="print-trigger"
             id="print-trigger"
             type="button"
-            aria-label="打印当前笔记或保存为 A4 PDF"
-            title="打印当前笔记或保存为 A4 PDF"
+            aria-label="打印当前笔记或保存为 A4 PDF" data-i18n-aria-label="打印当前笔记或保存为 A4 PDF"
+            title="打印当前笔记或保存为 A4 PDF" data-i18n-title="打印当前笔记或保存为 A4 PDF"
             hidden
             disabled
           >
@@ -77,7 +77,7 @@
               <path d="M7 8V4.5h10V8M7 16H5.5A1.5 1.5 0 0 1 4 14.5v-5A1.5 1.5 0 0 1 5.5 8h13A1.5 1.5 0 0 1 20 9.5v5a1.5 1.5 0 0 1-1.5 1.5H17" />
               <path d="M7 13.5h10v6H7zM17.5 11.5h.01" />
             </svg>
-            <span>打印 / PDF</span>
+            <span data-i18n="打印 / PDF">打印 / PDF</span>
           </button>
           <time class="immersion-clock" id="immersion-clock" aria-hidden="true">
             <span class="immersion-clock__date" id="immersion-clock-date"></span>
@@ -91,7 +91,7 @@
           href="#"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="通过 Buy Me a Coffee 支持 Note Portal"
+          aria-label="通过 Buy Me a Coffee 支持 Note Portal" data-i18n-aria-label="通过 Buy Me a Coffee 支持 Note Portal"
           title="Buy Me a Coffee"
           hidden
         >
@@ -105,21 +105,21 @@
           class="topbar-icon-action settings-trigger"
           id="settings-trigger"
           type="button"
-          aria-label="打开设置"
-          title="设置"
+          aria-label="打开设置" data-i18n-aria-label="打开设置"
+          title="设置" data-i18n-title="设置"
         >
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="3.1" />
             <path d="M19.1 13.7a7.5 7.5 0 0 0 0-3.4l2-1.5-2-3.4-2.4 1a8 8 0 0 0-3-1.7L13.4 2H9.5l-.3 2.7a8 8 0 0 0-3 1.7l-2.4-1-2 3.4 2 1.5a7.5 7.5 0 0 0 0 3.4l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 3 1.7l.3 2.7h3.9l.3-2.7a8 8 0 0 0 3-1.7l2.4 1 2-3.4-2-1.5Z" />
           </svg>
-          <span>设置</span>
+          <span data-i18n="设置">设置</span>
         </button>
-        <button class="search-trigger" id="search-trigger" type="button" aria-label="搜索笔记">
+        <button class="search-trigger" id="search-trigger" type="button" aria-label="搜索笔记" data-i18n-aria-label="搜索笔记">
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="6.5" />
             <path d="m16 16 4 4" />
           </svg>
-          <span>搜索笔记</span>
+          <span data-i18n="搜索笔记">搜索笔记</span>
           <kbd>/</kbd>
         </button>
       </div>
@@ -133,22 +133,22 @@
       class="last-read-marker"
       id="last-read-marker"
       type="button"
-      aria-label="跳转到上次阅读位置"
-      title="跳转到上次阅读位置"
+      aria-label="跳转到上次阅读位置" data-i18n-aria-label="跳转到上次阅读位置"
+      title="跳转到上次阅读位置" data-i18n-title="跳转到上次阅读位置"
       hidden
     >
       <span aria-hidden="true"></span>
-      <span class="last-read-marker__label">上次读到</span>
+      <span class="last-read-marker__label" data-i18n="上次读到">上次读到</span>
     </button>
 
     <div class="app-shell">
-      <aside class="sidebar" id="sidebar" aria-label="课程与周次导航">
+      <aside class="sidebar" id="sidebar" aria-label="课程与周次导航" data-i18n-aria-label="课程与周次导航">
         <div class="sidebar__header">
           <div>
-            <p class="sidebar__term" id="sidebar-term">Semester study notes</p>
-            <p class="sidebar__summary" id="sidebar-summary">Loading library…</p>
+            <p class="sidebar__term" id="sidebar-term" data-i18n="Semester study notes">Semester study notes</p>
+            <p class="sidebar__summary" id="sidebar-summary" data-i18n="Loading library…">Loading library…</p>
           </div>
-          <button class="icon-button mobile-only" id="nav-close" type="button" aria-label="关闭课程导航">
+          <button class="icon-button mobile-only" id="nav-close" type="button" aria-label="关闭课程导航" data-i18n-aria-label="关闭课程导航">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="m6 6 12 12M18 6 6 18" />
             </svg>
@@ -159,16 +159,16 @@
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <path d="M4 5.5h6.5v13H4zM13.5 5.5H20v13h-6.5z" />
           </svg>
-          <span>Study overview</span>
+          <span data-i18n="Study overview">Study overview</span>
         </button>
 
-        <nav id="course-navigation" class="course-navigation" aria-label="课程列表"></nav>
+        <nav id="course-navigation" class="course-navigation" aria-label="课程列表" data-i18n-aria-label="课程列表"></nav>
 
         <div class="sidebar__footer">
           <span class="status-dot" aria-hidden="true"></span>
-          <span>Local library</span>
+          <span data-i18n="Local library">Local library</span>
           <span class="sidebar__footer-separator" aria-hidden="true">·</span>
-          <span>Synced notes</span>
+          <span data-i18n="Synced notes">Synced notes</span>
         </div>
       </aside>
 
@@ -176,7 +176,7 @@
         class="sidebar-edge-toggle"
         id="sidebar-edge-toggle"
         type="button"
-        aria-label="收起课程导航"
+        aria-label="收起课程导航" data-i18n-aria-label="收起课程导航"
         aria-controls="sidebar"
         aria-expanded="true"
       >
@@ -185,13 +185,13 @@
         </svg>
       </button>
 
-      <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="关闭课程导航"></button>
+      <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="关闭课程导航" data-i18n-aria-label="关闭课程导航"></button>
 
       <button
         class="toc-toggle"
         id="toc-toggle"
         type="button"
-        aria-label="打开本页目录"
+        aria-label="打开本页目录" data-i18n-aria-label="打开本页目录"
         aria-controls="toc-panel"
         aria-expanded="false"
         hidden
@@ -199,14 +199,14 @@
         <svg aria-hidden="true" viewBox="0 0 24 24">
           <path d="M4 6h2M9 6h11M4 12h2M9 12h11M4 18h2M9 18h11" />
         </svg>
-        <span>本页目录</span>
+        <span data-i18n="本页目录">本页目录</span>
       </button>
 
       <button
         class="assistant-toggle"
         id="assistant-toggle"
         type="button"
-        aria-label="打开问笔记"
+        aria-label="打开问笔记" data-i18n-aria-label="打开问笔记"
         aria-controls="toc-panel"
         aria-expanded="false"
         hidden
@@ -215,26 +215,26 @@
           <path d="M7 18.5 4.5 20l.8-3A7.5 7.5 0 1 1 19.5 13c0 4-3.7 7-8.2 7-1.6 0-3.1-.4-4.3-1.1" />
           <path d="M9 8.5h5M9 12h3.5" />
         </svg>
-        <span>问笔记</span>
+        <span data-i18n="问笔记">问笔记</span>
       </button>
 
-      <button class="toc-scrim" id="toc-scrim" type="button" aria-label="关闭阅读工具" hidden></button>
+      <button class="toc-scrim" id="toc-scrim" type="button" aria-label="关闭阅读工具" data-i18n-aria-label="关闭阅读工具" hidden></button>
 
-      <div class="reader-control-dock" id="reader-control-dock" role="group" aria-label="阅读工具" hidden>
+      <div class="reader-control-dock" id="reader-control-dock" role="group" aria-label="阅读工具" data-i18n-aria-label="阅读工具" hidden>
         <button
           class="immersion-toggle"
           id="immersion-toggle"
           type="button"
           aria-pressed="false"
-          aria-label="开启沉浸阅读"
-          title="开启沉浸阅读"
+          aria-label="开启沉浸阅读" data-i18n-aria-label="开启沉浸阅读"
+          title="开启沉浸阅读" data-i18n-title="开启沉浸阅读"
           hidden
         >
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M4 16v4h4" />
           </svg>
         </button>
-        <button class="back-to-top" id="back-to-top" type="button" aria-label="回到页首" title="回到页首" hidden>
+        <button class="back-to-top" id="back-to-top" type="button" aria-label="回到页首" data-i18n-aria-label="回到页首" title="回到页首" data-i18n-title="回到页首" hidden>
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <path d="m7 11 5-5 5 5M12 6v12" />
           </svg>
@@ -253,9 +253,9 @@
         <div id="view-root"></div>
       </main>
 
-      <aside class="toc-panel utility-panel" id="toc-panel" aria-label="阅读工具">
+      <aside class="toc-panel utility-panel" id="toc-panel" aria-label="阅读工具" data-i18n-aria-label="阅读工具">
         <div class="utility-panel__topbar">
-          <div class="utility-tabs" role="tablist" aria-label="阅读工具">
+          <div class="utility-tabs" role="tablist" aria-label="阅读工具" data-i18n-aria-label="阅读工具">
             <button
               class="utility-tab"
               id="toc-tab"
@@ -263,7 +263,7 @@
               role="tab"
               aria-selected="true"
               aria-controls="toc-view"
-            >本页目录</button>
+             data-i18n="本页目录">本页目录</button>
             <button
               class="utility-tab"
               id="preferences-tab"
@@ -272,7 +272,7 @@
               aria-selected="false"
               aria-controls="preferences-view"
               hidden
-            >阅读外观</button>
+             data-i18n="阅读外观">阅读外观</button>
             <button
               class="utility-tab"
               id="assistant-tab"
@@ -281,9 +281,9 @@
               aria-selected="false"
               aria-controls="assistant-view"
               hidden
-            >问笔记</button>
+             data-i18n="问笔记">问笔记</button>
           </div>
-          <button class="icon-button toc-close" id="toc-close" type="button" aria-label="关闭本页目录">
+          <button class="icon-button toc-close" id="toc-close" type="button" aria-label="关闭本页目录" data-i18n-aria-label="关闭本页目录">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="m6 6 12 12M18 6 6 18" />
             </svg>
@@ -291,7 +291,7 @@
         </div>
 
         <section class="utility-view toc-view" id="toc-view" role="tabpanel" aria-labelledby="toc-tab">
-          <p class="utility-eyebrow">On this page</p>
+          <p class="utility-eyebrow" data-i18n="On this page">On this page</p>
           <nav id="toc-navigation"></nav>
         </section>
 
@@ -313,7 +313,7 @@
           <div class="assistant-header">
             <div>
               <div class="assistant-title-row">
-                <h2>问笔记</h2>
+                <h2 data-i18n="问笔记">问笔记</h2>
                 <span class="assistant-status" id="assistant-status" data-state="checking">
                   <span class="assistant-status__dot" aria-hidden="true"></span>
                   <span id="assistant-status-label">正在检查本地模型…</span>
@@ -426,18 +426,18 @@
           <circle cx="11" cy="11" r="6.5" />
           <path d="m16 16 4 4" />
         </svg>
-        <label class="sr-only" for="search-input" id="search-title">搜索全部笔记</label>
+        <label class="sr-only" for="search-input" id="search-title" data-i18n="搜索全部笔记">搜索全部笔记</label>
         <input
           id="search-input"
           type="search"
-          placeholder="搜索全部笔记正文…"
+          placeholder="搜索全部笔记正文…" data-i18n-placeholder="搜索全部笔记正文…"
           autocomplete="off"
         />
-        <button class="dialog-close" id="search-close" type="button" aria-label="关闭搜索">Esc</button>
+        <button class="dialog-close" id="search-close" type="button" aria-label="关闭搜索" data-i18n-aria-label="关闭搜索">Esc</button>
       </div>
       <div class="search-dialog__scope">
-        <span id="search-scope-term">Semester notes</span>
-        <span id="search-count">Loading…</span>
+        <span id="search-scope-term" data-i18n="Semester notes">Semester notes</span>
+        <span id="search-count" data-i18n="Loading…">Loading…</span>
       </div>
       <div class="search-results" id="search-results" aria-live="polite"></div>
     </dialog>
@@ -446,13 +446,23 @@
       <div class="portal-dialog__header">
         <div>
           <p class="portal-dialog__eyebrow">Note Portal</p>
-          <h2 id="settings-title">设置</h2>
+          <h2 id="settings-title" data-i18n="设置">设置</h2>
         </div>
-        <button class="portal-dialog__close" id="settings-close" type="button" aria-label="关闭设置">
+        <button class="portal-dialog__close" id="settings-close" type="button" aria-label="关闭设置" data-i18n-aria-label="关闭设置">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
         </button>
       </div>
       <div class="settings-dialog__body">
+        <section class="settings-section" aria-labelledby="reader-language-label">
+          <label id="reader-language-label" for="reader-language" data-i18n="language">界面语言</label>
+          <select id="reader-language" aria-describedby="reader-language-hint">
+            <option value="app" data-i18n="followApp">跟随应用</option>
+            <option value="zh" lang="zh-CN">中文</option>
+            <option value="en" lang="en">English</option>
+          </select>
+          <p class="settings-section__hint" id="reader-language-hint" data-i18n="languageHint">只更改界面，不翻译笔记正文。</p>
+          <p id="reader-language-error" role="alert" hidden></p>
+        </section>
         <section class="settings-section" aria-labelledby="settings-account-title">
           <div class="settings-section__heading">
             <h3 id="settings-account-title">当前用户</h3>
@@ -464,24 +474,24 @@
 
         <section class="settings-section" aria-labelledby="settings-theme-title">
           <div class="settings-section__heading">
-            <h3 id="settings-theme-title">阅读配色</h3>
+            <h3 id="settings-theme-title" data-i18n="阅读配色">阅读配色</h3>
           </div>
-          <p class="settings-section__hint">选择适合长时间阅读的页面配色。</p>
-          <div class="reading-theme-options" role="group" aria-label="阅读配色">
+          <p class="settings-section__hint" data-i18n="选择适合长时间阅读的页面配色。">选择适合长时间阅读的页面配色。</p>
+          <div class="reading-theme-options" role="group" aria-label="阅读配色" data-i18n-aria-label="阅读配色">
             <button class="reading-theme-option" type="button" data-reading-theme="light" aria-pressed="true">
               <span class="reading-theme-option__swatch reading-theme-option__swatch--light" aria-hidden="true"></span>
-              <span>白昼</span>
+              <span data-i18n="白昼">白昼</span>
             </button>
             <button class="reading-theme-option" type="button" data-reading-theme="warm" aria-pressed="false">
               <span class="reading-theme-option__swatch reading-theme-option__swatch--warm" aria-hidden="true"></span>
-              <span>暖纸</span>
+              <span data-i18n="暖纸">暖纸</span>
             </button>
             <button class="reading-theme-option" type="button" data-reading-theme="dark" aria-pressed="false">
               <span class="reading-theme-option__swatch reading-theme-option__swatch--dark" aria-hidden="true"></span>
-              <span>夜间</span>
+              <span data-i18n="夜间">夜间</span>
             </button>
           </div>
-          <p class="settings-section__hint">主题色与本机 Logo 请在 Note Portal 控制窗口的“设置与条款”中选择；修改后刷新此页。</p>
+          <p class="settings-section__hint" data-i18n="主题色与本机 Logo 请在 Note Portal 控制窗口的“设置与条款”中选择；修改后刷新此页。">主题色与本机 Logo 请在 Note Portal 控制窗口的“设置与条款”中选择；修改后刷新此页。</p>
         </section>
 
         <section class="settings-section settings-section--actions" aria-labelledby="settings-help-title">
@@ -501,8 +511,8 @@
         </section>
 
         <section class="settings-notice" aria-labelledby="settings-notice-title">
-          <h3 id="settings-notice-title">使用声明</h3>
-          <p>本机资料库仅供你在有权使用的范围内阅读。请遵守适用的学术诚信、版权、隐私和保密要求；通常不建议将服务部署到公网上。</p>
+          <h3 id="settings-notice-title" data-i18n="使用声明">使用声明</h3>
+          <p data-i18n="本机资料库仅供你在有权使用的范围内阅读。请遵守适用的学术诚信、版权、隐私和保密要求；通常不建议将服务部署到公网上。">本机资料库仅供你在有权使用的范围内阅读。请遵守适用的学术诚信、版权、隐私和保密要求；通常不建议将服务部署到公网上。</p>
         </section>
       </div>
     </dialog>
@@ -586,7 +596,7 @@
           <p class="portal-dialog__eyebrow">Settings</p>
           <h2 id="welcome-settings-title">把阅读环境调成你喜欢的样子</h2>
           <div class="welcome-feature-grid" aria-label="设置功能介绍">
-            <div><span class="welcome-feature-grid__swatches" aria-hidden="true"><i></i><i></i><i></i></span><strong>阅读配色</strong><small>白昼、暖纸与深色</small></div>
+            <div><span class="welcome-feature-grid__swatches" aria-hidden="true"><i></i><i></i><i></i></span><strong data-i18n="阅读配色">阅读配色</strong><small>白昼、暖纸与深色</small></div>
             <div><span class="welcome-feature-grid__symbol" aria-hidden="true">✎</span><strong>问题反馈</strong><small>连同登录邮箱安全保存</small></div>
             <div><span class="welcome-feature-grid__symbol" aria-hidden="true">↺</span><strong>阅读续接</strong><small>回到上次阅读章节</small></div>
           </div>
@@ -613,6 +623,7 @@
 
     <script src="vendor/marked.umd.js"></script>
     <script src="vendor/katex/katex.min.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js?v=20260920-welcome-bmc-wait-1"></script>
   </body>
 </html>

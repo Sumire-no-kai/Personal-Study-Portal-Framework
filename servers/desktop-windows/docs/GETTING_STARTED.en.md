@@ -63,6 +63,23 @@ The local service listens on your own computer. A public internet deployment is 
 
 First check the selected library type. In Study, verify all four path parts and the matching Week filename. Then press **Refresh now** and read the diagnostic path and suggestion. The app does not silently repair source files.
 
+## Reader language
+
+The browser reader follows the control-window language by default. In the
+reader's **Settings → Interface language**, choose **中文**, **English**, or
+**Follow app**. Your choice is stored in this browser only. When following the
+app, refresh an open reader after changing the control-window language.
+Note contents, titles, headings and folder names are never translated or rewritten.
+
+## Sharing diagnostics
+
+In the control window, open **Settings and terms → Local diagnostics**.
+**Copy diagnostics** copies the app/system version and recent errors from this
+session. **Open log folder** reveals local logs. Nothing is uploaded automatically;
+logs exclude note contents, file paths and reader-session tokens. Each log is
+limited to 1 MiB, with up to three archives. Review all material before posting
+it in a public issue.
+
 ## If local settings cannot be loaded
 
 This does not mean your notes are damaged. Try **Restore previous settings** first.

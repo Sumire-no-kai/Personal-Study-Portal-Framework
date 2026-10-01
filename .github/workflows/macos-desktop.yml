@@ -46,6 +46,8 @@ jobs:
         run: |
           node --check reader/app.js
           node --check reader/theme-init.js
+          node --check reader/i18n.js
+          npm test
           npm run build
           cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
           cargo test --locked --manifest-path src-tauri/Cargo.toml

@@ -29,6 +29,14 @@ content.
   language and offers a manual switch. Windows reader settings offer four
   accent colours and an optional local PNG/JPEG/WebP logo up to 2 MiB. No
   official institution logos are bundled.
+- The desktop browser reader follows the control-window language (Chinese or
+  English), with an independent browser-local choice in its Settings. Refresh
+  the reader after changing the control-window language. Note contents, titles
+  and folder names stay in their original language; the root static reader is
+  unchanged.
+- Local diagnostics rotate at 1 MiB with up to three archives. Settings can
+  open the log folder or copy a version/system/recent-error summary. Logs are
+  not uploaded and exclude source paths, note contents and session tokens.
 - General libraries preserve ordinary folders and recognise eligible `.md`
   documents recursively.
 - Study libraries follow the deterministic layout documented in

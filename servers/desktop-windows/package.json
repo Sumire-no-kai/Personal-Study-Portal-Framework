@@ -4,6 +4,7 @@
   "version": "0.2.0-beta.1",
   "type": "module",
   "scripts": {
+    "test": "node --test reader/i18n.test.cjs",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri"

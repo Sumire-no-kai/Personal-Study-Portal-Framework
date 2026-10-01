@@ -96,6 +96,8 @@
 !servers/desktop-windows/src-tauri/src/library.rs
 !servers/desktop-windows/src-tauri/src/main.rs
 !servers/desktop-windows/src-tauri/src/diagnostics.rs
+!servers/desktop-windows/reader/i18n.js
+!servers/desktop-windows/reader/i18n.test.cjs
 !servers/desktop-windows/src-tauri/src/platform/
 !servers/desktop-windows/src-tauri/src/platform/mod.rs
 !servers/desktop-windows/src-tauri/src/server.rs
