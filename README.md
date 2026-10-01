@@ -111,7 +111,8 @@ renames or deletes your Markdown files.
   notification area. If you cannot find the icon, launch Note Portal again to
   reopen the window. On Windows 11 you can keep the icon visible under
   **Settings → Personalization → Taskbar → Other system tray icons**.
-- The browser reader interface is currently Chinese only; the control window
+- The previously published beta's browser reader is Chinese only; development
+  and new CI builds include the bilingual reader described below. The control window
   is available in Chinese and English.
 - A library can hold at most 64 MiB of Markdown in total, and at most 8 MiB
   per note; images count separately, up to 32 MiB each. Split a larger
