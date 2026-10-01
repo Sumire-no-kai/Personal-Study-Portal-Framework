@@ -117,9 +117,10 @@ renames or deletes your Markdown files.
 - A library can hold at most 64 MiB of Markdown in total, and at most 8 MiB
   per note; images count separately, up to 32 MiB each. Split a larger
   collection into several libraries.
-- Image links must be relative to the note, for example
-  `../assets/figure.png`, and the image must be inside the selected library.
-  Root-absolute links such as `/assets/figure.png` are not shown.
+- Images must be inside the selected library. Links relative to the note,
+  such as `../assets/figure.png`, work in both profiles; links starting with
+  `/`, such as `/assets/figure.png`, are read from `content/` in a Study
+  library and from the library folder in a General library.
 - Large libraries use more resources. With about 2,000 notes (48 MiB of
   Markdown) the test PC used about 130 MiB of memory while idle and took up
   to about 3 seconds to start serving; typical libraries stay below 100 MiB
@@ -205,8 +206,6 @@ records completed checks and the remaining work:
   tags only. Stable-tag support, aligned version manifests and final release
   documentation must be ready before publishing 1.0.
 
-Other tracked improvements include root-absolute image paths
-([#66](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/66)).
 Open enhancement issues do not by themselves mean an existing workflow is
 broken; stable acceptance is defined by the PRD and release checklist.
 
