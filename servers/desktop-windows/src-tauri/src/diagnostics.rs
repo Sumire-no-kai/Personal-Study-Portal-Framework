@@ -316,7 +316,7 @@ mod tests {
         );
         for file in files {
             let bytes = std::fs::read(file.path()).unwrap();
-            assert!(bytes.len() <= MAX_LOG_BYTES as usize);
+            assert!(bytes.len() <= MAX_LOG_BYTES);
             assert!(!String::from_utf8_lossy(&bytes).contains("PRIVATE_TOKEN_AND_PATH"));
         }
     }
