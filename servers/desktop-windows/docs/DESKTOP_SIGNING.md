@@ -2,10 +2,13 @@
 
 ## Current status
 
-- Windows x64 and ARM64 Releases remain unsigned. SignPath enrollment is being
-  prepared in [#68](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/68);
-  no certificate or approved SignPath project is configured yet.
-- macOS has an Apple Silicon **experimental build** with ad-hoc signing.
+- Windows x64 and ARM64 Releases remain unsigned. The maintainer submitted the
+  free SignPath application on 2026-10-01; approval and CI integration are
+  pending in [#68](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/68).
+  No certificate or approved SignPath project is configured yet.
+- macOS has an Apple Silicon [experimental preview release](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/macos-v0.2.0-beta.1)
+  with ad-hoc signing, distributed as a ZIP containing `Note Portal.app`.
+  No Intel package or DMG is available in this preview.
   This verifies bundle integrity but does not authenticate a publisher. It is
   not Developer ID signing or Apple notarization, and does not remove
   Gatekeeper's download checks. No paid Apple account is used.
@@ -41,6 +44,14 @@ metadata. It uploads the ZIP, a signature report and SHA-256 checksum as a
 14-day Actions artifact. It does not create or edit a public Release.
 An extracted bundle should report `Signature=adhoc` and pass `codesign --verify`.
 
+The maintainer published the unmodified artifact from
+[run 36801918420](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/runs/36801918420)
+as `macos-v0.2.0-beta.1`, at source commit
+`4b7e84c64218d562f8f2a5896ce5e0107b9003a1`. The application version remains
+`0.2.0-beta.1`. The downloaded ZIP's checksum, extracted bundle's strict
+signature and ARM64 architecture were rechecked before publication. This
+manual prerelease is separate from automatic Windows alpha/beta publishing.
+
 从 GitHub 下载后的首次打开可能仍被 macOS 拦截。只有确认下载来源及校验值后，
 才按系统“隐私与安全性”中的提示决定是否允许打开；本项目不要求关闭系统防护。
 本地构建能打开，不等于浏览器下载的副本已经通过 Gatekeeper 验证。
@@ -57,9 +68,9 @@ Never replace files inside a signed app afterward. The macOS workflow performs
 ad-hoc signing on each build automatically. Windows signing can use the same CI
 sequence after enrollment, with a maintainer approval for each SignPath request.
 
-## Code signing policy — Windows enrollment preparation
+## Code signing policy — Windows enrollment
 
-Status: **proposed SignPath route; not yet approved or in use**.
+Status: **application submitted; not yet approved or in use**.
 The current maintainer, [Sumire-no-kai](https://github.com/Sumire-no-kai), is the
 proposed code author, reviewer and release-signing approver. Confirm these
 roles during enrollment. Contributors' changes require maintainer review;
@@ -92,12 +103,14 @@ runtime configuration or credentials. See the user-facing
   npm/Cargo lockfiles, tests and Clippy before NSIS packaging.
 - Signing scope requested: the project's own application executable and NSIS
   installer for each architecture. Confirm uninstaller handling with SignPath.
-- Maintainer contact email, MFA confirmation and service terms acceptance:
-  to be completed by the maintainer, not inferred from commit metadata.
+- Contact details and service consent are handled by the maintainer through
+  the application, not published in this repository. Confirm GitHub/SignPath
+  MFA and assigned signing roles before enabling the service.
 
-Apply through https://signpath.org/apply after reviewing its
-[conditions](https://signpath.org/terms). No application has been submitted by
-this preparation, and no paid service or certificate has been purchased.
+The maintainer submitted the application through https://signpath.org/apply
+on 2026-10-01. Review and account/project setup remain pending. The
+[conditions](https://signpath.org/terms) govern eligibility and use; no paid
+service or certificate has been purchased.
 
 ### Integration after approval
 

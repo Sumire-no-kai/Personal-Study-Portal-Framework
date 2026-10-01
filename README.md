@@ -1,7 +1,7 @@
 # Study Portal Framework
 
 [![Windows desktop CI](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/workflows/windows-desktop.yml/badge.svg?branch=master)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/workflows/windows-desktop.yml)
-[![Latest Windows prerelease](https://img.shields.io/github/v/release/Sumire-no-kai/Personal-Study-Portal-Framework?include_prereleases&label=Windows)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases)
+[![Windows beta: 0.2.0-beta.1](https://img.shields.io/badge/Windows%20beta-0.2.0--beta.1-0078D4)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1)
 [![Platform: Windows x64 and ARM64](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20ARM64-0078D4)](#windows-desktop-beta-note-portal)
 [![License: MIT](https://img.shields.io/github/license/Sumire-no-kai/Personal-Study-Portal-Framework)](LICENSE)
 
@@ -28,8 +28,9 @@ A local-first, content-agnostic Markdown reader for long-form learning material.
 It provides structured navigation, responsive reading, LaTeX rendering,
 reading-position persistence, and an optional assistant interface that can be
 connected to a separate backend. The repository also contains **Note Portal**,
-a Windows desktop app, now in public beta, that serves the same kind of reader for a local
-folder of Markdown files.
+a small desktop app that serves a reader for a local folder of Markdown files.
+Windows is in public beta; an experimental Apple Silicon macOS preview is also
+available. The desktop app has no built-in AI service.
 
 This repository intentionally contains **no course material, personal notes,
 model files, vector indexes, device configuration, or credentials**. Installer
@@ -48,6 +49,21 @@ the source tree. The static reader starts in a safe empty-library state; add a g
 - Optional assistant panel. The UI degrades safely when no assistant or search
   backend is configured.
 
+## Desktop downloads
+
+All current desktop downloads are prereleases. Choose by operating system and
+processor, rather than taking the newest release regardless of platform.
+
+| Computer | Download | Status |
+| --- | --- | --- |
+| Windows, most Intel/AMD PCs | [Windows beta](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1): `*_x64-setup.exe` | x64, unsigned |
+| Windows on ARM | [Windows beta](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1): `*_arm64-setup.exe` | Native ARM64 app, unsigned |
+| Mac with Apple Silicon (M-series) | [macOS preview](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/macos-v0.2.0-beta.1): `Note.Portal_macos_arm64_experimental.app.zip` | ARM64, ad-hoc signed, runtime testing pending |
+| Mac with an Intel processor | No package available yet | Not supported by the ARM64 ZIP |
+
+The release's `SHA256SUMS.txt` covers its application downloads. GitHub's
+“Source code” archives are for developers; they are not application packages.
+
 ## Windows desktop beta: Note Portal
 
 Note Portal turns a local folder of Markdown files into a reading site in your
@@ -61,7 +77,7 @@ code-signed and some checks for the first stable release remain open.
 
 ### Install
 
-1. Open [Releases](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases) and download the installer for your
+1. Open the [Windows beta release](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1) and download the installer for your
    processor: `*_x64-setup.exe` for most Windows PCs or `*_arm64-setup.exe`
    for Windows on ARM. The “Source code” archives and GitHub Packages are not
    the app. An x64 installer running under emulation on ARM does not count as
@@ -107,8 +123,6 @@ renames or deletes your Markdown files.
   Markdown) the test PC used about 130 MiB of memory while idle and took up
   to about 3 seconds to start serving; typical libraries stay below 100 MiB
   and start in well under a second.
-- macOS has an experimental Apple Silicon Actions build with ad-hoc signing;
-  it is not a supported macOS release. See [desktop signing](servers/desktop-windows/docs/DESKTOP_SIGNING.md).
 - Keep the reader on this computer. Do not expose the local service to a
   network or the public internet.
 
@@ -142,11 +156,69 @@ covers clean installation, content safety, refresh and native ARM64 checks. Do
 not label a build stable until the Windows device matrix and clean-machine
 checks pass.
 
+## macOS Apple Silicon preview
+
+The [macOS preview release](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/macos-v0.2.0-beta.1)
+contains a ZIP of `Note Portal.app`, plus its checksum and CI signature report.
+Download the application ZIP, extract it, and move `Note Portal.app` to your
+Applications folder. There is no DMG or Intel package in this preview. The
+minimum build target is macOS 11.0; individual macOS versions have not been
+verified.
+
+The Apple Silicon bundle is ad-hoc signed. Its checksum, ARM64 architecture and
+strict signature check after extraction passed. It has no Developer ID
+certificate or Apple notarization, so the first launch after a browser download
+may be blocked by Gatekeeper. After checking the official source and checksum,
+use the system's Privacy & Security prompts if you choose to allow it.
+
+macOS first-run, menu-bar behavior, login launch and library workflows still
+need device testing. Some About/Settings wording remains Windows-oriented,
+and macOS default-language detection is not yet refined. Use a test library
+when evaluating this experimental build. See [desktop signing](servers/desktop-windows/docs/DESKTOP_SIGNING.md)
+for the build and verification details.
+
+## Road to the first stable release
+
+As of 2026-10-01, the first stable release (1.0) remains **Windows x64 and
+ARM64 only**. macOS validation follows separately. The
+[1.0 checklist](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/57)
+records completed checks and the remaining work:
+
+- Windows signing: the maintainer has submitted the free SignPath application.
+  Approval, CI integration and signed-package installation/upgrade/removal
+  checks are pending ([#68](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/68)).
+- Large-library performance: the x64 2,000-note test recorded about 129 MiB
+  idle working set and one 2.7-second service start, above the 100 MiB and
+  two-second budgets. Refresh measurements were 0.76–0.83 seconds, within the
+  one-second budget. Optimization and final-build measurements are still
+  required ([#67](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/67)).
+- Final device evidence: cold-start measurements on both architectures,
+  current-build offline use, ARM64 new-user clean installation, and remaining
+  focused security/accessibility checks are tracked in
+  [#57](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/57)
+  and [#69](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/69).
+  Normal-desktop candidate retests passed folder refresh, combined saves,
+  guide links and ARM64 login launch; earlier isolated-host failures are not
+  being counted as unresolved product defects.
+- Release preparation: the current Windows workflow publishes alpha/beta
+  tags only. Stable-tag support, aligned version manifests and final release
+  documentation must be ready before publishing 1.0.
+
+Other tracked improvements include root-absolute image paths
+([#66](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/66)),
+local diagnostic logs
+([#70](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/70))
+and the English reader interface
+([#71](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/71)).
+Open enhancement issues do not by themselves mean an existing workflow is
+broken; stable acceptance is defined by the PRD and release checklist.
+
 ## Code signing policy
 
-Windows Releases are currently unsigned. The free SignPath application is being
-prepared; service approval and configuration are still pending. macOS experimental
-builds use ad-hoc signatures, without Apple Developer ID or notarization.
+Windows Releases are currently unsigned. The maintainer submitted the free
+SignPath application on 2026-10-01; service approval and configuration are
+still pending. macOS experimental builds use ad-hoc signatures, without Apple
+Developer ID or notarization.
 See the [signing policy and build instructions](servers/desktop-windows/docs/DESKTOP_SIGNING.md)
 for current status, proposed maintainer roles, privacy and verification steps.
 

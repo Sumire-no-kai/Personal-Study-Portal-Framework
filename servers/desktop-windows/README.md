@@ -1,8 +1,8 @@
 # Note Portal
 
-Note Portal is a lightweight Windows app, in public beta with macOS support planned
-for a later release, that turns a local
-Markdown folder into a structured reading website. The desktop process selects
+Note Portal is a lightweight desktop app that turns a local Markdown folder
+into a structured reading website. Windows is in public beta, and an
+experimental Apple Silicon macOS preview is available. The desktop process selects
 and watches a library, runs the local service, and opens the user's normal
 browser. Study notes are an important built-in profile, not the only supported
 content.
@@ -50,13 +50,29 @@ notarization, and installer configuration.
 The current beta implements the Windows path first, using Tauri 2, a Vanilla
 TypeScript status panel, and one Rust process for scanning, watching, and HTTP.
 An experimental Apple Silicon macOS bundle uses the same source and an ad-hoc
-signature; full macOS runtime acceptance and public release remain pending.
+signature. Full macOS runtime acceptance and a stable release remain pending.
 See [desktop signing](docs/DESKTOP_SIGNING.md) for build instructions and the
-Windows SignPath enrollment preparation. Tauri supports
+submitted Windows SignPath application. Tauri supports
 system-tray applications and startup registration on both target platforms:
 
 - <https://v2.tauri.app/learn/system-tray/>
 - <https://v2.tauri.app/plugin/autostart/>
+
+## Downloads and platform status
+
+- **Windows x64 and ARM64:** [0.2.0-beta.1 public beta](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1).
+  Choose the matching `*-setup.exe`; both installers remain unsigned.
+- **Mac with Apple Silicon (M-series):** [0.2.0-beta.1 experimental preview](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/macos-v0.2.0-beta.1).
+  Extract `Note.Portal_macos_arm64_experimental.app.zip` and move
+  `Note Portal.app` to Applications. This ARM64 bundle is ad-hoc signed,
+  without Developer ID or notarization. Check the release checksum before
+  following macOS Privacy & Security prompts. Runtime testing is pending;
+  Windows-oriented labels and incomplete macOS language detection remain.
+- **Intel Mac:** no `x86_64` package is available. The Apple Silicon ZIP does
+  not support Intel processors. This preview has no DMG.
+
+The first stable release is Windows-only. A macOS experimental download does
+not establish platform parity or change the Windows 1.0 acceptance criteria.
 
 ## Source layout
 
@@ -164,22 +180,36 @@ generated manifests, course configuration and indexes, and any credential.
 
 The [PRD](PRD.md) defines the stable-release acceptance criteria. Formatting,
 unit tests and Clippy run on native Windows x64 and ARM64 CI runners.
-Before release, 0.1.1-alpha.1 was installed over an earlier alpha on one x64 PC
-and one Windows on ARM device and passed every required item of the
-[pre-release checklist](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/44),
-including the tray icon on both devices. The checklist's optional items were
-not run on those devices. The [test plan](docs/WINDOWS_TEST_PLAN.zh-CN.md) holds
-the ARM64 records and links every x64 record, the latest being the
-[0.1.1-alpha.1 x64 retest](docs/WINDOWS_X64_TEST_RUN_2026-09-25_ISSUE44_RETEST.md).
-The first stable-release checklist
+The earlier 0.1.1-alpha.1 passed the required
+[pre-release checklist](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/44)
+on an x64 PC and a Windows on ARM device. The
+[test plan](docs/WINDOWS_TEST_PLAN.zh-CN.md) now includes ARM64 beta-candidate
+upgrade, keyboard-focus and normal-desktop refresh/link retests. The latest
+[x64 report](docs/WINDOWS_X64_TEST_RUN_2026-09-30_ISSUE57_RETEST.md) distinguishes
+its tested older build and isolated-host observations from beta-candidate
+results. The maintainer also reported successful new-user first-run checks
+and ARM64 logout/login testing; these are summary reports, not full
+per-step evidence on both architectures.
+
+As of 2026-10-01, the first stable-release checklist
 ([#57](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/57))
-tracks the remaining device results. Installation on a freshly installed
-Windows system, accessibility, signing and the full resource budgets are not
-yet verified. The in-memory
-search snapshot currently retains Markdown bodies and rescans the whole
-library after a relevant file event; an image whose size and modification time
+still tracks final-build verification, ARM64 new-user clean installation,
+offline use, focused security/accessibility evidence and
+[cold-start measurements](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/69).
+The free SignPath application has been submitted; approval, signing integration
+and signed-package retesting remain pending
+([#68](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/68)).
+The current CI publishes alpha/beta tags only; stable-tag support and aligned
+version manifests must be prepared before 1.0.
+
+The in-memory search snapshot currently retains Markdown bodies and rescans
+the whole library after a relevant file event; an image whose size and modification time
 are unchanged keeps its previous hash instead of being read again, and served
-images are still verified against that hash. Incremental indexing, the 100 MiB
-idle-memory budget for a large library, and the sub-second refresh target are
-not yet demonstrated. Do not present this as a stable public release until
-those checks are complete.
+images are still verified against that hash. The x64 2,000-note measurement
+recorded about 129 MiB idle working set and service-start times of roughly
+1.5, 1.9 and 2.7 seconds; memory and one start exceeded the 100 MiB/two-second
+budgets. Save-to-update measurements of 0.76–0.83 seconds met the one-second
+target on that test host. Incremental indexing and repeatable final-build
+performance remain work for
+[#67](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/67).
+Do not present the app as a stable public release until acceptance is complete.
