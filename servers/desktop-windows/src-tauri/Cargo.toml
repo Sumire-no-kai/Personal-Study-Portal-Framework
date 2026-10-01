@@ -10,6 +10,7 @@ tauri-build = { version = "2.5", features = [] }
 axum = { version = "0.8", features = ["json"] }
 blake3 = "1"
 chrono = { version = "0.4", features = ["serde"] }
+fern = "0.7"
 getrandom = "0.3"
 include_dir = "0.7"
 log = "0.4"
