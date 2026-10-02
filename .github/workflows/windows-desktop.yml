@@ -6,26 +6,43 @@ on:
     branches:
       - master
     tags:
-      - "v*-alpha.*"
-      - "v*-beta.*"
+      - "v*"
     paths:
       - "servers/desktop-windows/**"
       - "LICENSE"
       - "vendor/**"
       - ".github/workflows/windows-desktop.yml"
+      - ".github/scripts/windows-release*"
   pull_request:
     paths:
       - "servers/desktop-windows/**"
       - "LICENSE"
       - "vendor/**"
       - ".github/workflows/windows-desktop.yml"
+      - ".github/scripts/windows-release*"
 
 permissions:
   contents: read
 
 jobs:
+  release-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Test stable and prerelease publication rules
+        run: node --test .github/scripts/windows-release.test.mjs
+      - name: Validate release tag
+        if: github.ref_type == 'tag'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node .github/scripts/windows-release.mjs --check-tag "$RELEASE_TAG"
+
   build:
     name: build (${{ matrix.arch }})
+    needs: release-policy
     strategy:
       fail-fast: false
       matrix:
@@ -96,6 +113,24 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build unsigned NSIS installer
         run: npx tauri build --target ${{ matrix.target }}
+      # SignPath integration must sign both files before this stable-release gate.
+      - name: Verify application and installer signing status
+        shell: pwsh
+        env:
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+          RELEASE_REF_NAME: ${{ github.ref_name }}
+        run: |
+          $stable = $env:RELEASE_REF_TYPE -eq 'tag' -and -not $env:RELEASE_REF_NAME.Contains('-')
+          $app = Get-Item 'src-tauri/target/${{ matrix.target }}/release/note-portal-desktop.exe' -ErrorAction Stop
+          $installers = @(Get-ChildItem 'src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe' -File)
+          if ($installers.Count -ne 1) { throw 'Expected exactly one installer for signature verification' }
+          foreach ($file in @($app) + $installers) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            Write-Host "$($file.Name): $($signature.Status)"
+            if ($stable -and ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate)) {
+              throw "Stable release requires a valid Windows signature: $($file.Name)"
+            }
+          }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: note-portal-windows-${{ matrix.arch }}-installer
@@ -111,6 +146,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
       - name: Require tag on current master
         run: |
           git fetch --no-tags --depth=1 origin master
@@ -120,32 +158,9 @@ jobs:
           pattern: note-portal-windows-*-installer
           path: release
           merge-multiple: true
-      - name: Publish Windows prerelease
-        working-directory: release
+      - name: Publish Windows release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          installers=(./*-setup.exe)
-          test "${#installers[@]}" -eq 2
-          for installer in "${installers[@]}"; do
-            release_installer="${installer// /.}"
-            if [[ "$installer" != "$release_installer" ]]; then
-              test ! -e "$release_installer"
-              mv "$installer" "$release_installer"
-            fi
-          done
-          x64=(./*_x64-setup.exe)
-          arm64=(./*_arm64-setup.exe)
-          test "${#x64[@]}" -eq 1
-          test "${#arm64[@]}" -eq 1
-          sha256sum "${x64[0]}" "${arm64[0]}" > SHA256SUMS.txt
-          sha256sum -c SHA256SUMS.txt
-          channel=alpha
-          if [[ "$GITHUB_REF_NAME" == *-beta.* ]]; then channel=beta; fi
-          gh release create "$GITHUB_REF_NAME" "${x64[0]}" "${arm64[0]}" SHA256SUMS.txt \
-            --verify-tag --prerelease --latest=false \
-            --title "Note Portal $GITHUB_REF_NAME (Windows $channel)" \
-            --notes "Windows 预发布版：根据设备选择 x64 或 ARM64 的 *-setup.exe 安装，“Source code”压缩包不是应用。ARM64 安装器外壳可能使用 x86 模拟，安装后的应用主体为 ARM64；新版本可直接覆盖旧版本安装，设置会保留。首次启动请打开并读完整使用提示、完成不可跳过的简短指引，然后选择本机 Markdown 文件夹。小窗口按系统语言默认显示中文或英文，可在设置中切换；Windows 阅读页支持主题色与本机 Logo。服务仅监听本机，不内置 AI，也不会上传笔记；单个资料库的 Markdown 总量上限为 64 MiB。安装包尚未签名，可能触发 Windows SmartScreen 提示，请仅在你信任的电脑上安装；尚未在全新安装的 Windows 系统上验证。遇到问题或有建议，请用 https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/issues/new/choose 中的表单反馈。此版本不适合公网部署。" \
-            --generate-notes
+          node .github/scripts/windows-release.mjs "$RELEASE_TAG" release
