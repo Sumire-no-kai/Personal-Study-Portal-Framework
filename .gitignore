@@ -18,6 +18,9 @@
 !.github/workflows/
 !.github/workflows/windows-desktop.yml
 !.github/workflows/macos-desktop.yml
+!.github/scripts/
+!.github/scripts/windows-release.mjs
+!.github/scripts/windows-release.test.mjs
 !.github/ISSUE_TEMPLATE/
 !.github/ISSUE_TEMPLATE/bug_report.yml
 !.github/ISSUE_TEMPLATE/feature_request.yml

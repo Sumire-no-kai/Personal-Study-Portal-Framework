@@ -147,12 +147,19 @@ deployment. It never bundles a user's library. Windows CI checks formatting,
 runs the tests and Clippy, and builds NSIS installers on native x64 and ARM64
 runners for relevant pull requests and `master` pushes. CI artifacts are
 temporary test outputs kept for 14 days, not a public download release. After
-a change is merged, a `v*-alpha.*` or `v*-beta.*` tag pointing to the current `master` commit
-triggers the release workflow. The tag must match the version in the Tauri,
-Cargo and npm manifests, and the workflow publishes both installers and their
-SHA-256 checksums as a prerelease only if both architecture jobs pass. PR merge
-alone does not create a tag or release. Release notes combine maintained
-safety and installation guidance with automatically generated change notes.
+a change is merged, a version tag pointing to the current `master` commit
+triggers the release workflow. Supported tags are `vX.Y.Z`, `vX.Y.Z-alpha.N`
+and `vX.Y.Z-beta.N` (numeric components without leading zeros). Other `v*`
+tags fail validation. The tag must match the Tauri, Cargo and npm versions.
+Both architecture jobs must pass before publishing the installers and
+`SHA256SUMS.txt`. Alpha/beta releases remain prereleases and do not replace
+Latest; a stable tag creates a normal release marked Latest. Stable builds
+must have valid Authenticode signatures on both application executables and
+installers. Signing integration is still pending, so unsigned stable builds
+are blocked. PR merges and branch builds do not publish a release.
+Release notes combine channel-specific installation guidance with generated
+change notes. The publication rules are tested using a mocked GitHub command;
+tests never create real releases.
 The [Windows device test plan](servers/desktop-windows/docs/WINDOWS_TEST_PLAN.zh-CN.md)
 covers clean installation, content safety, refresh and native ARM64 checks. Do
 not label a build stable until the Windows device matrix and clean-machine
@@ -202,9 +209,10 @@ records completed checks and the remaining work:
   Normal-desktop candidate retests passed folder refresh, combined saves,
   guide links and ARM64 login launch; earlier isolated-host failures are not
   being counted as unresolved product defects.
-- Release preparation: the current Windows workflow publishes alpha/beta
-  tags only. Stable-tag support, aligned version manifests and final release
-  documentation must be ready before publishing 1.0.
+- Release preparation: the Windows workflow supports stable and alpha/beta
+  tags. Before tagging 1.0, complete signing and candidate acceptance, align
+  the Tauri/Cargo/npm versions and lockfiles, and update release documentation.
+  Stable publication remains blocked while Windows signing is unavailable.
 
 Open enhancement issues do not by themselves mean an existing workflow is
 broken; stable acceptance is defined by the PRD and release checklist.
