@@ -2,7 +2,8 @@
 
 [![Windows desktop CI](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/workflows/windows-desktop.yml/badge.svg?branch=master)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/workflows/windows-desktop.yml)
 [![Windows beta: 0.2.0-beta.1](https://img.shields.io/badge/Windows%20beta-0.2.0--beta.1-0078D4)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1)
-[![Platform: Windows x64 and ARM64](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20ARM64-0078D4)](#windows-desktop-beta-note-portal)
+[![macOS Apple Silicon preview: 0.2.0-beta.1](https://img.shields.io/badge/macOS%20Apple%20Silicon%20preview-0.2.0--beta.1-555555)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/macos-v0.2.0-beta.1)
+[![Platforms: Windows x64 and ARM64, macOS Apple Silicon preview](https://img.shields.io/badge/platforms-Windows%20x64%20%2F%20ARM64%20%7C%20macOS%20Apple%20Silicon%20preview-0078D4)](#desktop-downloads)
 [![License: MIT](https://img.shields.io/github/license/Sumire-no-kai/Personal-Study-Portal-Framework)](LICENSE)
 
 > [!IMPORTANT]
