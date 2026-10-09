@@ -1,7 +1,7 @@
 # Study Portal Framework
 
 [![Windows desktop CI](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/workflows/windows-desktop.yml/badge.svg?branch=master)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/actions/workflows/windows-desktop.yml)
-[![Windows beta: 0.2.0-beta.1](https://img.shields.io/badge/Windows%20beta-0.2.0--beta.1-0078D4)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1)
+[![Windows beta: 0.2.0-beta.2](https://img.shields.io/badge/Windows%20beta-0.2.0--beta.2-0078D4)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.2)
 [![macOS Apple Silicon preview: 0.2.0-beta.1](https://img.shields.io/badge/macOS%20Apple%20Silicon%20preview-0.2.0--beta.1-555555)](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/macos-v0.2.0-beta.1)
 [![Platforms: Windows x64 and ARM64, macOS Apple Silicon preview](https://img.shields.io/badge/platforms-Windows%20x64%20%2F%20ARM64%20%7C%20macOS%20Apple%20Silicon%20preview-0078D4)](#desktop-downloads)
 [![License: MIT](https://img.shields.io/github/license/Sumire-no-kai/Personal-Study-Portal-Framework)](LICENSE)
@@ -57,8 +57,8 @@ processor, rather than taking the newest release regardless of platform.
 
 | Computer | Download | Status |
 | --- | --- | --- |
-| Windows, most Intel/AMD PCs | [Windows beta](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1): `*_x64-setup.exe` | x64, unsigned |
-| Windows on ARM | [Windows beta](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1): `*_arm64-setup.exe` | Native ARM64 app, unsigned |
+| Windows, most Intel/AMD PCs | [Windows beta](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.2): `*_x64-setup.exe` | x64, unsigned |
+| Windows on ARM | [Windows beta](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.2): `*_arm64-setup.exe` | Native ARM64 app, unsigned |
 | Mac with Apple Silicon (M-series) | [macOS preview](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/macos-v0.2.0-beta.1): `Note.Portal_macos_arm64_experimental.app.zip` | ARM64, ad-hoc signed, runtime testing pending |
 | Mac with an Intel processor | No package available yet | Not supported by the ARM64 ZIP |
 
@@ -78,7 +78,7 @@ code-signed and some checks for the first stable release remain open.
 
 ### Install
 
-1. Open the [Windows beta release](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1) and download the installer for your
+1. Open the [Windows beta release](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.2) and download the installer for your
    processor: `*_x64-setup.exe` for most Windows PCs or `*_arm64-setup.exe`
    for Windows on ARM. The “Source code” archives and GitHub Packages are not
    the app. An x64 installer running under emulation on ARM does not count as
@@ -86,8 +86,8 @@ code-signed and some checks for the first stable release remain open.
 2. Optionally compare the installer's SHA-256 with `SHA256SUMS.txt` from the
    same release, for example `Get-FileHash .\<installer>.exe` in PowerShell.
 3. Windows SmartScreen may warn about the unsigned installer. Continue only on
-   a computer you trust. Installing a newer version over an older one keeps
-   your settings.
+   a computer you trust. The installer offers English and Simplified Chinese.
+   Installing a newer version over an older one keeps your settings.
 4. On first launch, open the full responsible-use notice, scroll to its end,
    agree, and complete the short guide. You are asked again whenever the notice
    changes.
@@ -112,9 +112,8 @@ renames or deletes your Markdown files.
   notification area. If you cannot find the icon, launch Note Portal again to
   reopen the window. On Windows 11 you can keep the icon visible under
   **Settings → Personalization → Taskbar → Other system tray icons**.
-- The previously published beta's browser reader is Chinese only; development
-  and new CI builds include the bilingual reader described below. The control window
-  is available in Chinese and English.
+- The control window and browser reader support Chinese and English. The
+  reader follows the app unless a language is selected in Reader Settings.
 - A library can hold at most 64 MiB of Markdown in total, and at most 8 MiB
   per note; images count separately, up to 32 MiB each. Split a larger
   collection into several libraries.
@@ -230,18 +229,24 @@ public issue. Windows stores logs under
 本次运行最近错误的摘要。日志仅保存在本机，不记录笔记正文、文件路径或会话令牌；
 每份最多 1 MiB，另保留最多三份历史日志。提交公开 Issue 前请先检查内容。
 
-The desktop reader in development builds also supports Chinese and English.
+The Windows `0.2.0-beta.2` release includes Chinese and English in the
+control window, browser reader and Windows installer. The installer offers
+a language selector; the control window defaults to Chinese for a Chinese
+system language and English otherwise, and remembers a manual choice.
+The browser reader also supports Chinese and English.
 It follows the control-window language by default. **Reader Settings → Interface
 language** offers a browser-local override or **Follow app**; refresh an open
 reader after changing the control-window language. Document contents, titles,
-headings and folder names remain in their original language. These changes are
-in source/CI builds, not the previously published beta. The root static reader
-is unchanged.
+headings and folder names remain in their original language. The root static
+reader is unchanged; older desktop downloads do not gain these changes without
+an application update.
 
-开发版本的桌面阅读页已支持中英双语，默认跟随控制窗口。阅读页 **设置 → 界面语言**
+Windows `0.2.0-beta.2` 的控制窗口、阅读页和安装器均支持中文与英文。
+安装器提供语言选择；控制窗口在中文系统默认中文，其他系统默认英文，并记住手动选择。
+阅读页默认跟随控制窗口。阅读页 **设置 → 界面语言**
 可选择“跟随应用”、中文或 English，选择仅保存在当前浏览器。修改控制窗口语言后，
 请刷新已打开的阅读页。笔记正文、标题、章节和文件夹名称保持原文。
-这些功能在源码与 CI 构建中，旧的 beta 下载包不会自动获得更新；根目录静态阅读页未改动。
+需要更新应用才能获得这些功能，旧的下载包不会自动更新；根目录静态阅读页未改动。
 
 ## Code signing policy
 
