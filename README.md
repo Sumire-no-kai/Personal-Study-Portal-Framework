@@ -230,7 +230,11 @@ public issue. Windows stores logs under
 本次运行最近错误的摘要。日志仅保存在本机，不记录笔记正文、文件路径或会话令牌；
 每份最多 1 MiB，另保留最多三份历史日志。提交公开 Issue 前请先检查内容。
 
-The desktop reader in development builds also supports Chinese and English.
+The `0.2.0-beta.2` desktop candidate includes Chinese and English in the
+control window, browser reader and Windows installer. The installer offers
+a language selector; the control window defaults to Chinese for a Chinese
+system language and English otherwise, and remembers a manual choice.
+The browser reader also supports Chinese and English.
 It follows the control-window language by default. **Reader Settings → Interface
 language** offers a browser-local override or **Follow app**; refresh an open
 reader after changing the control-window language. Document contents, titles,
@@ -238,7 +242,9 @@ headings and folder names remain in their original language. These changes are
 in source/CI builds, not the previously published beta. The root static reader
 is unchanged.
 
-开发版本的桌面阅读页已支持中英双语，默认跟随控制窗口。阅读页 **设置 → 界面语言**
+`0.2.0-beta.2` 桌面候选版的控制窗口、阅读页和 Windows 安装器均支持中文与英文。
+安装器提供语言选择；控制窗口在中文系统默认中文，其他系统默认英文，并记住手动选择。
+阅读页默认跟随控制窗口。阅读页 **设置 → 界面语言**
 可选择“跟随应用”、中文或 English，选择仅保存在当前浏览器。修改控制窗口语言后，
 请刷新已打开的阅读页。笔记正文、标题、章节和文件夹名称保持原文。
 这些功能在源码与 CI 构建中，旧的 beta 下载包不会自动获得更新；根目录静态阅读页未改动。

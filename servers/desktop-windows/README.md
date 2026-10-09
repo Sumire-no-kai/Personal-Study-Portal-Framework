@@ -71,6 +71,13 @@ system-tray applications and startup registration on both target platforms:
 
 ## Downloads and platform status
 
+The next desktop candidate is `0.2.0-beta.2`. It includes Chinese and English
+in the control window and browser reader, plus an English / Simplified Chinese
+language selector in the Windows installer. The control window follows the
+system language on first use and remembers manual changes. The reader follows
+the app unless its own Settings language choice overrides it; note content is
+never translated. This candidate has not replaced the public downloads below.
+
 - **Windows x64 and ARM64:** [0.2.0-beta.1 public beta](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/v0.2.0-beta.1).
   Choose the matching `*-setup.exe`; both installers remain unsigned.
 - **Mac with Apple Silicon (M-series):** [0.2.0-beta.1 experimental preview](https://github.com/Sumire-no-kai/Personal-Study-Portal-Framework/releases/tag/macos-v0.2.0-beta.1).
